@@ -94,6 +94,9 @@ export function simuleaza(p: Parametri): Rezultat {
   const totalLuni = p.orizontAni * 12;
   const rC = rataLunara(p.randamentCrestere);
   const rS = rataLunara(p.randamentSiguranta);
+  // Pilon SAFE (fondul de urgenta) sta intr-un cont curent / Tagesgeld, deci creste
+  // cu dobanda mica a contului standard, nu cu rata Pilonului DEPOT.
+  const rSafe = rataLunara(p.randamentStandard);
 
   let crestere = (p.capitalInitial * p.procentInitialCrestere) / 100;
   let siguranta = p.capitalInitial - crestere;
@@ -147,7 +150,7 @@ export function simuleaza(p: Parametri): Rezultat {
 
     const dobCrestere = crestere * rC;
     const dobSiguranta = siguranta * rS;
-    const dobUrgenta = urgenta * rS;
+    const dobUrgenta = urgenta * rSafe;
     crestere = crestere + dobCrestere + spreCrestere;
     siguranta = siguranta + dobSiguranta + spreSiguranta;
     urgenta = urgenta + dobUrgenta;
@@ -218,7 +221,7 @@ export const parametriImpliciti = (): Parametri => ({
   orizontAni: 7,
   randamentCrestere: 6,
   randamentSiguranta: 2.7,
-  randamentStandard: 2,
+  randamentStandard: 0.7,
   fondUrgenta: 15000,
   capitalInitial: 25000,
   procentInitialCrestere: 50,

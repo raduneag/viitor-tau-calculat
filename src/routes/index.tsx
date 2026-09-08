@@ -63,7 +63,11 @@ const PILON_GROW = "Pilon GROW";
 const PILON_JUNIOR = "Pilon JUNIOR / copil";
 
 const LEGENDA_PILONI: { nume: string; descriere: string }[] = [
-  { nume: `${PILON_SAFE} (de neatins)`, descriere: "Fondul de urgenta. Bani de siguranta, nu se ating, cresc doar din dobanda." },
+  {
+    nume: `${PILON_SAFE} (de neatins)`,
+    descriere:
+      "Fondul de urgenta, tinut intr-un cont curent (Tagesgeld). Nu se atinge si creste doar cu dobanda mica a contului standard.",
+  },
   { nume: PILON_DEPOT, descriere: "Cont depozit bancar. Randament mic, dar stabil." },
   { nume: PILON_GROW, descriere: "Bani investiti in ETF. Randament mai mare, dar cu fluctuatii." },
   {
@@ -358,11 +362,11 @@ function Index() {
                   />
                   <CampSlider
                     eticheta="Randament cont standard (Tagesgeld)"
-                    ajutor="Dobanda unui cont curent obisnuit. Se foloseste doar pentru comparatie: linia punctata din grafic arata unde ai fi daca ai lasa toti banii asa, fara plan."
+                    ajutor="Dobanda unui cont curent obisnuit. Se aplica direct la Pilon SAFE (fondul de urgenta sta acolo) si e folosita pentru comparatie: liniile punctate arata unde ai fi daca lasai toti banii asa, fara plan."
                     valoare={p.randamentStandard}
                     min={0}
                     max={6}
-                    pas={0.1}
+                    pas={0.05}
                     onChange={(v) => set("randamentStandard", v)}
                   />
                 </AccordionContent>
@@ -680,8 +684,14 @@ function Index() {
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Cu <span className="font-medium">{formatEUR(pil.fataDeStandard)}</span> mai
-                        mult decat intr-un cont standard.
+                        {pil.fataDeStandard >= 1 ? (
+                          <>
+                            Cu <span className="font-medium">{formatEUR(pil.fataDeStandard)}</span>{" "}
+                            mai mult decat intr-un cont standard.
+                          </>
+                        ) : (
+                          <>La fel ca un cont standard &mdash; banii chiar stau acolo.</>
+                        )}
                       </p>
                     </div>
                   );
