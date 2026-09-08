@@ -63,7 +63,7 @@ function fazaPentruLuna(faze: Faza[], luna: number, totalLuni: number) {
   // luna: 1-based
   let start = 1;
   for (let i = 0; i < faze.length; i++) {
-    const f = faze[i];
+    const f = faze[i]!;
     const durata = i === faze.length - 1 ? Math.max(totalLuni - start + 1, 0) : f.luni;
     if (luna >= start && luna < start + durata) return f;
     start += durata;
@@ -153,7 +153,7 @@ export function simuleaza(p: Parametri): Rezultat {
     if (luna % 12 === 0) ani.push(snapshot(luna / 12));
   }
 
-  const ultim = ani[ani.length - 1];
+  const ultim = ani[ani.length - 1]!;
   const totalFinal = ultim.totalFamilie;
   const castig = totalFinal - totalContribuit;
 
