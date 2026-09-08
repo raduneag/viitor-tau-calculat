@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import {
+  Bar,
+  BarChart,
   CartesianGrid,
   Legend,
   Line,
@@ -58,7 +60,7 @@ const NUME_COPII = ["Oscar", "Luca"];
 const PILON_SAFE = "Pilon SAFE";
 const PILON_DEPOT = "Pilon DEPOT";
 const PILON_GROW = "Pilon GROW";
-const pilonJunior = (i: number) => `Pilon JUNIOR ${NUME_COPII[i] ?? `Copil ${i + 1}`}`;
+const PILON_JUNIOR = "Pilon JUNIOR / copil";
 
 const LEGENDA_PILONI: { nume: string; descriere: string }[] = [
   { nume: `${PILON_SAFE} (de neatins)`, descriere: "Fondul de urgenta. Bani de siguranta, nu se ating, cresc doar din dobanda." },
@@ -173,6 +175,16 @@ function Index() {
   const set = <K extends keyof Parametri>(k: K, v: Parametri[K]) => setP((s) => ({ ...s, [k]: v }));
 
   const rez = useMemo(() => simuleaza(p), [p]);
+  // Acelasi plan, dar cu toti banii intr-un cont standard (Tagesgeld) - pentru comparatie.
+  const rezStandard = useMemo(
+    () =>
+      simuleaza({
+        ...p,
+        randamentCrestere: p.randamentStandard,
+        randamentSiguranta: p.randamentStandard,
+      }),
+    [p],
+  );
   const rezScenarii = useMemo(
     () => scenarii.map((s) => ({ nume: s.nume, rez: simuleaza(s.parametri) })),
     [scenarii],
@@ -180,22 +192,67 @@ function Index() {
 
   const dateGrafic = useMemo(() => {
     return rez.ani.map((a, i) => {
+      const std = rezStandard.ani[i];
       const rand: Record<string, number> = {
         an: a.an,
         urgenta: +a.fondUrgenta.toFixed(2),
         siguranta: +a.siguranta.toFixed(2),
         crestere: +a.crestere.toFixed(2),
+        // O singura linie pentru copii - planul e identic, valoarea e per copil.
+        copil: +(a.copii[0] ?? 0).toFixed(2),
       };
-      a.copii.forEach((v, idx) => {
-        rand[`copil${idx}`] = +v.toFixed(2);
-      });
+      if (std) {
+        rand["urgentaStd"] = +std.fondUrgenta.toFixed(2);
+        rand["sigurantaStd"] = +std.siguranta.toFixed(2);
+        rand["crestereStd"] = +std.crestere.toFixed(2);
+        rand["copilStd"] = +(std.copii[0] ?? 0).toFixed(2);
+      }
       rezScenarii.forEach((s, si) => {
         const val = s.rez.ani[i]?.totalFamilie;
         if (val !== undefined) rand[`scenariu${si}`] = +val.toFixed(2);
       });
       return rand;
     });
-  }, [rez, rezScenarii]);
+  }, [rez, rezStandard, rezScenarii]);
+
+  const piloniRezumat = useMemo(() => {
+    const a = rez.ani[rez.ani.length - 1];
+    const s = rezStandard.ani[rezStandard.ani.length - 1];
+    const cb = rez.contribuitPiloni;
+    const mk = (nume: string, valoare: number, contribuit: number, valoareStandard: number) => {
+      const dobanda = valoare - contribuit;
+      return {
+        nume,
+        valoare,
+        contribuit,
+        dobanda,
+        valoareStandard,
+        fataDeStandard: valoare - valoareStandard,
+        crestereProcent: contribuit > 0 ? (dobanda / contribuit) * 100 : 0,
+      };
+    };
+    if (!a || !s) return [];
+    return [
+      mk(PILON_SAFE, a.fondUrgenta, cb.safe, s.fondUrgenta),
+      mk(PILON_DEPOT, a.siguranta, cb.depot, s.siguranta),
+      mk(PILON_GROW, a.crestere, cb.grow, s.crestere),
+      mk(PILON_JUNIOR, a.copii[0] ?? 0, cb.copii[0] ?? 0, s.copii[0] ?? 0),
+    ];
+  }, [rez, rezStandard]);
+
+  const dobanziGrafic = useMemo(
+    () =>
+      rez.ani
+        .filter((a) => a.an > 0)
+        .map((a) => ({
+          an: a.an,
+          safe: +a.dobanzi.fondUrgenta.toFixed(2),
+          depot: +a.dobanzi.siguranta.toFixed(2),
+          grow: +a.dobanzi.crestere.toFixed(2),
+          junior: +(a.dobanzi.copii[0] ?? 0).toFixed(2),
+        })),
+    [rez],
+  );
 
   const salveazaScenariu = () => {
     if (scenarii.length >= 3) return;
@@ -299,6 +356,15 @@ function Index() {
                     pas={0.1}
                     onChange={(v) => set("randamentSiguranta", v)}
                   />
+                  <CampSlider
+                    eticheta="Randament cont standard (Tagesgeld)"
+                    ajutor="Dobanda unui cont curent obisnuit. Se foloseste doar pentru comparatie: linia punctata din grafic arata unde ai fi daca ai lasa toti banii asa, fara plan."
+                    valoare={p.randamentStandard}
+                    min={0}
+                    max={6}
+                    pas={0.1}
+                    onChange={(v) => set("randamentStandard", v)}
+                  />
                 </AccordionContent>
               </AccordionItem>
 
@@ -374,7 +440,9 @@ function Index() {
                 <AccordionContent className="space-y-5 pb-5">
                   {p.copii.map((c, i) => (
                     <div key={c.id} className="space-y-4 rounded-lg border border-dashed p-3">
-                      <p className="text-xs font-semibold">{pilonJunior(i)}</p>
+                      <p className="text-xs font-semibold">
+                        Pilon JUNIOR {NUME_COPII[i] ?? `Copil ${i + 1}`}
+                      </p>
                       <CampNumar
                         eticheta="Varsta acum"
                         ajutor="Perioada de economisire se calculeaza pana la 18 ani."
@@ -506,24 +574,58 @@ function Index() {
                         strokeWidth={2}
                         dot={false}
                       />
-                      {p.copii.map((c, i) => (
-                        <Line
-                          key={c.id}
-                          type="monotone"
-                          dataKey={`copil${i}`}
-                          name={pilonJunior(i)}
-                          stroke={CULORI[(i + 3) % CULORI.length]}
-                          strokeWidth={2}
-                          dot={false}
-                        />
-                      ))}
+                      <Line
+                        type="monotone"
+                        dataKey="copil"
+                        name={PILON_JUNIOR}
+                        stroke={CULORI[3]}
+                        strokeWidth={2}
+                        dot={false}
+                      />
+                      {/* Linii punctate: acelasi plan, dar cu banii intr-un cont standard */}
+                      <Line
+                        type="monotone"
+                        dataKey="urgentaStd"
+                        name={`${PILON_SAFE} · cont standard`}
+                        stroke={CULORI[0]}
+                        strokeDasharray="4 4"
+                        strokeWidth={1.5}
+                        dot={false}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="sigurantaStd"
+                        name={`${PILON_DEPOT} · cont standard`}
+                        stroke={CULORI[1]}
+                        strokeDasharray="4 4"
+                        strokeWidth={1.5}
+                        dot={false}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="crestereStd"
+                        name={`${PILON_GROW} · cont standard`}
+                        stroke={CULORI[2]}
+                        strokeDasharray="4 4"
+                        strokeWidth={1.5}
+                        dot={false}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="copilStd"
+                        name={`${PILON_JUNIOR} · cont standard`}
+                        stroke={CULORI[3]}
+                        strokeDasharray="4 4"
+                        strokeWidth={1.5}
+                        dot={false}
+                      />
                       {rezScenarii.map((s, i) => (
                         <Line
                           key={s.nume}
                           type="monotone"
                           dataKey={`scenariu${i}`}
                           name={`${s.nume} (total)`}
-                          stroke={CULORI[i % CULORI.length]}
+                          stroke={CULORI[(i + 4) % CULORI.length]}
                           strokeDasharray="5 4"
                           strokeWidth={2}
                           dot={false}
@@ -532,6 +634,62 @@ function Index() {
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Liniile pline = planul cu investitii. Liniile punctate = aceiasi bani lasati
+                  intr-un cont standard ({formatProcent(p.randamentStandard)}), adica ce se intampla
+                  daca nu faci nimic. Linia „Pilon JUNIOR / copil" arata valoarea unui singur cont
+                  ({NUME_COPII.join(" si ")} au acelasi plan); in „Total familie" sunt numarati ambii
+                  copii.
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Ce aduce fiecare pilon */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">
+                  Ce aduce fiecare pilon, la finalul celor {p.orizontAni} ani
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <p className="text-xs text-muted-foreground">
+                  Bara arata cat ai pus din buzunar (gri) si cat s-a adaugat din dobanzi (colorat).
+                </p>
+                {piloniRezumat.map((pil) => {
+                  const total = pil.valoare > 0 ? pil.valoare : 1;
+                  const pctContribuit = Math.max(0, Math.min(100, (pil.contribuit / total) * 100));
+                  return (
+                    <div key={pil.nume} className="space-y-1.5">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="text-sm font-medium">{pil.nume}</span>
+                        <span className="text-sm font-semibold tabular-nums">
+                          {formatEUR(pil.valoare)}
+                        </span>
+                      </div>
+                      <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
+                        <div
+                          className="bg-muted-foreground/40"
+                          style={{ width: `${pctContribuit}%` }}
+                        />
+                        <div className="bg-primary" style={{ width: `${100 - pctContribuit}%` }} />
+                      </div>
+                      <div className="flex flex-wrap justify-between gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                        <span>Pus deoparte: {formatEUR(pil.contribuit)}</span>
+                        <span className="font-medium text-primary">
+                          + {formatEUR(pil.dobanda)} din dobanzi ({formatProcent(pil.crestereProcent)})
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Cu <span className="font-medium">{formatEUR(pil.fataDeStandard)}</span> mai
+                        mult decat intr-un cont standard.
+                      </p>
+                    </div>
+                  );
+                })}
+                <p className="text-xs text-muted-foreground">
+                  Randamentul „Pilon JUNIOR / copil" e per copil; suma se aplica si lui Oscar, si lui
+                  Luca.
+                </p>
               </CardContent>
             </Card>
 
@@ -585,6 +743,11 @@ function Index() {
               </CardHeader>
               {tabelDeschis ? (
                 <CardContent className="overflow-x-auto">
+                  <p className="mb-3 text-xs text-muted-foreground">
+                    Valoarea fiecarui pilon la finalul fiecarui an. „Din dobanzi" = cat din „Total
+                    familie" e castig din randamente, restul fiind bani pusi din buzunar. Coloana
+                    JUNIOR e per copil; „Total familie" include ambii copii.
+                  </p>
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -592,37 +755,44 @@ function Index() {
                         <TableHead className="text-right">{PILON_SAFE}</TableHead>
                         <TableHead className="text-right">{PILON_DEPOT}</TableHead>
                         <TableHead className="text-right">{PILON_GROW}</TableHead>
-                        {p.copii.map((c, i) => (
-                          <TableHead key={c.id} className="text-right">
-                            {pilonJunior(i)}
-                          </TableHead>
-                        ))}
+                        <TableHead className="text-right">JUNIOR / copil</TableHead>
                         <TableHead className="text-right">Total familie</TableHead>
+                        <TableHead className="text-right">Din dobanzi</TableHead>
+                        <TableHead className="text-right">Randament</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {rez.ani.map((a) => (
-                        <TableRow key={a.an}>
-                          <TableCell className="font-medium">{a.an}</TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {formatEUR(a.fondUrgenta)}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {formatEUR(a.siguranta)}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {formatEUR(a.crestere)}
-                          </TableCell>
-                          {a.copii.map((v, i) => (
-                            <TableCell key={i} className="text-right tabular-nums">
-                              {formatEUR(v)}
+                      {rez.ani.map((a) => {
+                        const dinDobanzi = a.totalFamilie - a.contribuitCumulat;
+                        const randament =
+                          a.contribuitCumulat > 0 ? (dinDobanzi / a.contribuitCumulat) * 100 : 0;
+                        return (
+                          <TableRow key={a.an}>
+                            <TableCell className="font-medium">{a.an}</TableCell>
+                            <TableCell className="text-right tabular-nums">
+                              {formatEUR(a.fondUrgenta)}
                             </TableCell>
-                          ))}
-                          <TableCell className="text-right font-semibold tabular-nums">
-                            {formatEUR(a.totalFamilie)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                            <TableCell className="text-right tabular-nums">
+                              {formatEUR(a.siguranta)}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums">
+                              {formatEUR(a.crestere)}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums">
+                              {formatEUR(a.copii[0] ?? 0)}
+                            </TableCell>
+                            <TableCell className="text-right font-semibold tabular-nums">
+                              {formatEUR(a.totalFamilie)}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums text-primary">
+                              + {formatEUR(dinDobanzi)}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums text-primary">
+                              + {formatProcent(randament)}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </CardContent>
@@ -642,53 +812,51 @@ function Index() {
                 </button>
               </CardHeader>
               {dobanziDeschis ? (
-                <CardContent className="overflow-x-auto">
+                <CardContent>
                   <p className="mb-3 text-xs text-muted-foreground">
-                    Castigul generat de randamente in fiecare an, pe fiecare pilon (fara banii pusi
-                    deoparte din buzunar).
+                    Cati bani a produs fiecare pilon din randamente, an de an (fara banii pusi din
+                    buzunar). Bara mai inalta la GROW = investitia lucreaza mai mult. JUNIOR e per
+                    copil.
                   </p>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>An</TableHead>
-                        <TableHead className="text-right">{PILON_SAFE}</TableHead>
-                        <TableHead className="text-right">{PILON_DEPOT}</TableHead>
-                        <TableHead className="text-right">{PILON_GROW}</TableHead>
-                        {p.copii.map((c, i) => (
-                          <TableHead key={c.id} className="text-right">
-                            {pilonJunior(i)}
-                          </TableHead>
-                        ))}
-                        <TableHead className="text-right">Total an</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {rez.ani
-                        .filter((a) => a.an > 0)
-                        .map((a) => (
-                          <TableRow key={a.an}>
-                            <TableCell className="font-medium">{a.an}</TableCell>
-                            <TableCell className="text-right tabular-nums">
-                              {formatEUR(a.dobanzi.fondUrgenta)}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums">
-                              {formatEUR(a.dobanzi.siguranta)}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums">
-                              {formatEUR(a.dobanzi.crestere)}
-                            </TableCell>
-                            {a.dobanzi.copii.map((v, i) => (
-                              <TableCell key={i} className="text-right tabular-nums">
-                                {formatEUR(v)}
-                              </TableCell>
-                            ))}
-                            <TableCell className="text-right font-semibold tabular-nums">
-                              {formatEUR(a.dobanzi.total)}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                    </TableBody>
-                  </Table>
+                  <div className="h-[300px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={dobanziGrafic} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(0 0% 0% / 0.07)" vertical={false} />
+                        <XAxis
+                          dataKey="an"
+                          tickFormatter={(v) => `An ${v}`}
+                          fontSize={11}
+                          stroke="currentColor"
+                          className="text-muted-foreground"
+                        />
+                        <YAxis
+                          fontSize={11}
+                          width={70}
+                          tickFormatter={(v) =>
+                            new Intl.NumberFormat("ro-RO", { notation: "compact" }).format(Number(v))
+                          }
+                          stroke="currentColor"
+                          className="text-muted-foreground"
+                        />
+                        <ChartTooltip
+                          formatter={(v: number) => formatEUR(Number(v))}
+                          labelFormatter={(l) => `Anul ${l}`}
+                          contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                        />
+                        <Legend wrapperStyle={{ fontSize: 12 }} />
+                        <Bar dataKey="safe" stackId="d" name={PILON_SAFE} fill={CULORI[0]} />
+                        <Bar dataKey="depot" stackId="d" name={PILON_DEPOT} fill={CULORI[1]} />
+                        <Bar dataKey="grow" stackId="d" name={PILON_GROW} fill={CULORI[2]} />
+                        <Bar
+                          dataKey="junior"
+                          stackId="d"
+                          name={PILON_JUNIOR}
+                          fill={CULORI[3]}
+                          radius={[3, 3, 0, 0]}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
                 </CardContent>
               ) : null}
             </Card>

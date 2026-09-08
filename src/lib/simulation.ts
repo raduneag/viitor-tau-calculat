@@ -19,6 +19,7 @@ export type Parametri = {
   orizontAni: number;
   randamentCrestere: number; // %
   randamentSiguranta: number; // %
+  randamentStandard: number; // % - cont curent / Tagesgeld, folosit pentru comparatie
   fondUrgenta: number;
   capitalInitial: number;
   procentInitialCrestere: number; // 0-100
@@ -42,8 +43,17 @@ export type RandAn = {
   copii: number[];
   totalParinti: number;
   totalFamilie: number;
+  // Bani pusi deoparte din buzunar, cumulat pana la finalul acelui an.
+  contribuitCumulat: number;
   // Dobanda (castigul din randamente) generata in cursul acelui an, pe fiecare pilon.
   dobanzi: Dobanzi;
+};
+
+export type ContribuitPiloni = {
+  safe: number;
+  depot: number;
+  grow: number;
+  copii: number[];
 };
 
 export type Rezultat = {
@@ -52,6 +62,8 @@ export type Rezultat = {
   totalContribuit: number;
   castig: number;
   castigProcent: number;
+  // Cat s-a pus din buzunar in fiecare pilon, pe tot orizontul.
+  contribuitPiloni: ContribuitPiloni;
 };
 
 const VARSTA_MAJORAT = 18;
@@ -98,6 +110,14 @@ export function simuleaza(p: Parametri): Rezultat {
   let totalContribuit =
     p.capitalInitial + p.fondUrgenta + p.copii.reduce((s, c) => s + c.sumaInitiala, 0);
 
+  // Contributii cumulate pe fiecare pilon (bani pusi din buzunar, fara dobanda).
+  const contribuitPiloni: ContribuitPiloni = {
+    safe: p.fondUrgenta,
+    grow: crestere,
+    depot: siguranta,
+    copii: p.copii.map((c) => c.sumaInitiala),
+  };
+
   // Acumulatorul de dobanda pentru anul in curs.
   let dobAn = dobanziGoale(copii.length);
 
@@ -112,6 +132,7 @@ export function simuleaza(p: Parametri): Rezultat {
       copii: listaCopii,
       totalParinti,
       totalFamilie: totalParinti + urgenta + listaCopii.reduce((s, v) => s + v, 0),
+      contribuitCumulat: totalContribuit,
       dobanzi: dob,
     };
   };
@@ -131,6 +152,8 @@ export function simuleaza(p: Parametri): Rezultat {
     siguranta = siguranta + dobSiguranta + spreSiguranta;
     urgenta = urgenta + dobUrgenta;
     totalContribuit += contrib;
+    contribuitPiloni.grow += spreCrestere;
+    contribuitPiloni.depot += spreSiguranta;
 
     dobAn.crestere += dobCrestere;
     dobAn.siguranta += dobSiguranta;
@@ -152,6 +175,7 @@ export function simuleaza(p: Parametri): Rezultat {
       c.crestere = c.crestere + dc + cc;
       c.siguranta = c.siguranta + ds + cs;
       totalContribuit += c.cfg.contributieLunara;
+      contribuitPiloni.copii[idx] = (contribuitPiloni.copii[idx] ?? 0) + c.cfg.contributieLunara;
       dobAn.copii[idx] = (dobAn.copii[idx] ?? 0) + dc + ds;
     });
 
@@ -176,6 +200,7 @@ export function simuleaza(p: Parametri): Rezultat {
     totalContribuit,
     castig,
     castigProcent: totalContribuit > 0 ? (castig / totalContribuit) * 100 : 0,
+    contribuitPiloni,
   };
 }
 
@@ -193,6 +218,7 @@ export const parametriImpliciti = (): Parametri => ({
   orizontAni: 7,
   randamentCrestere: 6,
   randamentSiguranta: 2.7,
+  randamentStandard: 2,
   fondUrgenta: 15000,
   capitalInitial: 25000,
   procentInitialCrestere: 50,
