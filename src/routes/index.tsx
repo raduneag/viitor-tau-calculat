@@ -1,24 +1,810 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useMemo, useState } from "react";
+import {
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip as ChartTooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { HelpCircle, Plus, Trash2, ChevronDown } from "lucide-react";
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
+import {
+  Parametri,
+  formatEUR,
+  formatProcent,
+  parametriImpliciti,
+  simuleaza,
+} from "@/lib/simulation";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
 export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "Simulator de economisire si investitii pentru familie" },
+      {
+        name: "description",
+        content:
+          "Simuleaza in timp real cum creste capitalul familiei pe piloane: fond de urgenta, siguranta, crestere si conturi pentru copii.",
+      },
+      { property: "og:title", content: "Simulator de economisire si investitii pentru familie" },
+      {
+        property: "og:description",
+        content:
+          "Instrument personal de explorare: orizont pana la 15 ani, contributii in faze, test de rezistenta si obiectiv imobiliar.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
   component: Index,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
-function Index() {
+const CULORI = ["#3f6f86", "#4f8f7a", "#8a7b45", "#6c6191", "#9a6a58", "#5b7a94"];
+
+function Ajutor({ text }: { text: string }) {
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button type="button" aria-label="Explicatie" className="text-muted-foreground/70 hover:text-primary">
+          <HelpCircle className="h-3.5 w-3.5" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-xs text-xs leading-relaxed">{text}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+function CampNumar({
+  eticheta,
+  ajutor,
+  valoare,
+  onChange,
+  sufix,
+  pas = 1,
+}: {
+  eticheta: string;
+  ajutor?: string;
+  valoare: number;
+  onChange: (v: number) => void;
+  sufix?: string;
+  pas?: number;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+        {eticheta} {ajutor ? <Ajutor text={ajutor} /> : null}
+      </Label>
+      <div className="relative">
+        <Input
+          type="number"
+          step={pas}
+          value={Number.isFinite(valoare) ? valoare : 0}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className="pr-12"
+        />
+        {sufix ? (
+          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+            {sufix}
+          </span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function CampSlider({
+  eticheta,
+  ajutor,
+  valoare,
+  min,
+  max,
+  pas = 1,
+  unitate = "%",
+  onChange,
+}: {
+  eticheta: string;
+  ajutor?: string;
+  valoare: number;
+  min: number;
+  max: number;
+  pas?: number;
+  unitate?: string;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <Label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+          {eticheta} {ajutor ? <Ajutor text={ajutor} /> : null}
+        </Label>
+        <span className="text-sm font-medium tabular-nums">
+          {valoare.toLocaleString("ro-RO")}
+          {unitate ? ` ${unitate}` : ""}
+        </span>
+      </div>
+      <Slider
+        value={[valoare]}
+        min={min}
+        max={max}
+        step={pas}
+        onValueChange={(v) => onChange(v[0] ?? min)}
       />
     </div>
+  );
+}
+
+type Scenariu = { nume: string; parametri: Parametri };
+
+function Index() {
+  const [p, setP] = useState<Parametri>(parametriImpliciti);
+  const [scenarii, setScenarii] = useState<Scenariu[]>([]);
+  const [tabelDeschis, setTabelDeschis] = useState(false);
+
+  const set = <K extends keyof Parametri>(k: K, v: Parametri[K]) => setP((s) => ({ ...s, [k]: v }));
+
+  const rez = useMemo(() => simuleaza(p), [p]);
+  const rezScenarii = useMemo(
+    () => scenarii.map((s) => ({ nume: s.nume, rez: simuleaza(s.parametri) })),
+    [scenarii],
+  );
+
+  const dateGrafic = useMemo(() => {
+    return rez.ani.map((a, i) => {
+      const rand: Record<string, number> = {
+        an: a.an,
+        urgenta: +a.fondUrgenta.toFixed(2),
+        siguranta: +a.siguranta.toFixed(2),
+        crestere: +a.crestere.toFixed(2),
+      };
+      a.copii.forEach((v, idx) => {
+        rand[`copil${idx}`] = +v.toFixed(2);
+      });
+      rezScenarii.forEach((s, si) => {
+        const val = s.rez.ani[i]?.totalFamilie;
+        if (val !== undefined) rand[`scenariu${si}`] = +val.toFixed(2);
+      });
+      return rand;
+    });
+  }, [rez, rezScenarii]);
+
+  const salveazaScenariu = () => {
+    if (scenarii.length >= 3) return;
+    const nume = `Scenariul ${String.fromCharCode(65 + scenarii.length)}`;
+    setScenarii((s) => [...s, { nume, parametri: structuredClone(p) }]);
+  };
+
+  const setCopii = (n: number) => {
+    setP((s) => {
+      const copii = [...s.copii];
+      while (copii.length < n)
+        copii.push({
+          id: `c${Date.now()}${copii.length}`,
+          varsta: 3,
+          sumaInitiala: 700,
+          contributieLunara: 100,
+          procentCrestere: 100,
+          aniProtectie: 2,
+        });
+      return { ...s, copii: copii.slice(0, n) };
+    });
+  };
+
+  return (
+    <TooltipProvider delayDuration={150}>
+      <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:py-12">
+        <header className="mb-8">
+          <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+            Instrument personal de explorare
+          </p>
+          <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">
+            Planul de economisire si investitii al familiei
+          </h1>
+          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+            Modifica parametrii si vezi imediat cum evolueaza fiecare parte a capitalului familiei.
+            Totul se calculeaza direct in acest dispozitiv, nimic nu se salveaza.
+          </p>
+        </header>
+
+        {/* Panou sumar */}
+        <section className="mb-8 grid gap-4 sm:grid-cols-3">
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-xs text-muted-foreground">
+                Capital total la finalul celor {p.orizontAni} ani
+              </p>
+              <p className="mt-1 text-xl font-bold tabular-nums sm:text-2xl">
+                {formatEUR(rez.totalFinal)}
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-xs text-muted-foreground">Bani pusi deoparte din buzunar</p>
+              <p className="mt-1 text-xl font-bold tabular-nums sm:text-2xl">
+                {formatEUR(rez.totalContribuit)}
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-xs text-muted-foreground">Adaugat de randamente</p>
+              <p className="mt-1 text-xl font-bold tabular-nums text-primary sm:text-2xl">
+                {formatEUR(rez.castig)}
+              </p>
+              <p className="text-xs text-muted-foreground">{formatProcent(rez.castigProcent)}</p>
+            </CardContent>
+          </Card>
+        </section>
+
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
+          {/* Parametri */}
+          <div className="space-y-4">
+            <Accordion type="multiple" defaultValue={["general", "contributii"]} className="space-y-3">
+              <AccordionItem value="general" className="rounded-xl border bg-card px-4">
+                <AccordionTrigger className="text-sm font-semibold">Setari generale</AccordionTrigger>
+                <AccordionContent className="space-y-5 pb-5">
+                  <CampSlider
+                    eticheta="Cati ani simulam"
+                    ajutor="Perioada pe care vrei sa vezi evolutia banilor, intre 1 si 15 ani."
+                    valoare={p.orizontAni}
+                    min={1}
+                    max={15}
+                    unitate="ani"
+                    onChange={(v) => set("orizontAni", v)}
+                  />
+                  <CampSlider
+                    eticheta="Randament anual pentru partea de crestere"
+                    ajutor="Cat presupunem ca aduce, in medie pe an, partea investita in fonduri de actiuni la nivel global."
+                    valoare={p.randamentCrestere}
+                    min={0}
+                    max={12}
+                    pas={0.1}
+                    onChange={(v) => set("randamentCrestere", v)}
+                  />
+                  <CampSlider
+                    eticheta="Randament anual pentru partea de siguranta"
+                    ajutor="Partea de siguranta este banii tinuti in depozite sau fonduri de piata monetara: castig mic, dar stabil."
+                    valoare={p.randamentSiguranta}
+                    min={0}
+                    max={6}
+                    pas={0.1}
+                    onChange={(v) => set("randamentSiguranta", v)}
+                  />
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="urgenta" className="rounded-xl border bg-card px-4">
+                <AccordionTrigger className="text-sm font-semibold">
+                  Fond de urgenta si capital initial
+                </AccordionTrigger>
+                <AccordionContent className="space-y-5 pb-5">
+                  <CampNumar
+                    eticheta="Fond de urgenta"
+                    ajutor="Banii pastrati pentru situatii neprevazute. Nu primesc niciodata sume noi, cresc doar din dobanda."
+                    valoare={p.fondUrgenta}
+                    sufix="EUR"
+                    pas={100}
+                    onChange={(v) => set("fondUrgenta", v)}
+                  />
+                  <CampNumar
+                    eticheta="Bani disponibili acum pentru investit"
+                    valoare={p.capitalInitial}
+                    sufix="EUR"
+                    pas={100}
+                    onChange={(v) => set("capitalInitial", v)}
+                  />
+                  <CampSlider
+                    eticheta="Din acesti bani, cat merge spre crestere"
+                    ajutor="Restul procentului merge automat spre partea de siguranta."
+                    valoare={p.procentInitialCrestere}
+                    min={0}
+                    max={100}
+                    onChange={(v) => set("procentInitialCrestere", v)}
+                  />
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="contributii" className="rounded-xl border bg-card px-4">
+                <AccordionTrigger className="text-sm font-semibold">
+                  Cat puneti deoparte lunar
+                </AccordionTrigger>
+                <AccordionContent className="space-y-5 pb-5">
+                  <p className="text-xs text-muted-foreground">
+                    Poti defini pana la 3 etape una dupa alta. Ultima etapa acopera automat restul
+                    perioadei simulate.
+                  </p>
+                  {p.faze.map((f, i) => (
+                    <div key={f.id} className="space-y-4 rounded-lg border border-dashed p-3">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-semibold">Etapa {i + 1}</p>
+                        {p.faze.length > 1 && i > 0 ? (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() =>
+                              set(
+                                "faze",
+                                p.faze.filter((x) => x.id !== f.id),
+                              )
+                            }
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        ) : null}
+                      </div>
+                      {i < p.faze.length - 1 ? (
+                        <CampNumar
+                          eticheta="Cate luni dureaza"
+                          valoare={f.luni}
+                          sufix="luni"
+                          onChange={(v) =>
+                            set(
+                              "faze",
+                              p.faze.map((x) => (x.id === f.id ? { ...x, luni: v } : x)),
+                            )
+                          }
+                        />
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          Aceasta etapa dureaza pana la finalul perioadei simulate.
+                        </p>
+                      )}
+                      <CampNumar
+                        eticheta="Suma lunara"
+                        valoare={f.suma}
+                        sufix="EUR"
+                        pas={10}
+                        onChange={(v) =>
+                          set(
+                            "faze",
+                            p.faze.map((x) => (x.id === f.id ? { ...x, suma: v } : x)),
+                          )
+                        }
+                      />
+                      <CampSlider
+                        eticheta="Cat din suma merge spre crestere"
+                        valoare={f.procentCrestere}
+                        min={0}
+                        max={100}
+                        onChange={(v) =>
+                          set(
+                            "faze",
+                            p.faze.map((x) => (x.id === f.id ? { ...x, procentCrestere: v } : x)),
+                          )
+                        }
+                      />
+                    </div>
+                  ))}
+                  {p.faze.length < 3 ? (
+                    <Button
+                      variant="secondary"
+                      className="w-full"
+                      onClick={() =>
+                        set("faze", [
+                          ...p.faze,
+                          {
+                            id: `f${Date.now()}`,
+                            luni: 24,
+                            suma: (p.faze[p.faze.length - 1]?.suma ?? 500) + 300,
+                            procentCrestere: p.faze[p.faze.length - 1]?.procentCrestere ?? 70,
+                          },
+                        ])
+                      }
+                    >
+                      <Plus className="mr-1.5 h-4 w-4" /> Adauga o crestere de contributie
+                    </Button>
+                  ) : null}
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="copii" className="rounded-xl border bg-card px-4">
+                <AccordionTrigger className="text-sm font-semibold">Copii</AccordionTrigger>
+                <AccordionContent className="space-y-5 pb-5">
+                  <CampSlider
+                    eticheta="Numar de copii"
+                    valoare={p.copii.length}
+                    min={0}
+                    max={4}
+                    unitate=""
+                    onChange={setCopii}
+                  />
+                  {p.copii.map((c, i) => (
+                    <div key={c.id} className="space-y-4 rounded-lg border border-dashed p-3">
+                      <p className="text-xs font-semibold">Copilul {i + 1}</p>
+                      <CampNumar
+                        eticheta="Varsta acum"
+                        ajutor="Perioada de economisire se calculeaza pana la 18 ani."
+                        valoare={c.varsta}
+                        sufix="ani"
+                        onChange={(v) =>
+                          set(
+                            "copii",
+                            p.copii.map((x) => (x.id === c.id ? { ...x, varsta: v } : x)),
+                          )
+                        }
+                      />
+                      <CampNumar
+                        eticheta="Suma deja stransa"
+                        valoare={c.sumaInitiala}
+                        sufix="EUR"
+                        pas={50}
+                        onChange={(v) =>
+                          set(
+                            "copii",
+                            p.copii.map((x) => (x.id === c.id ? { ...x, sumaInitiala: v } : x)),
+                          )
+                        }
+                      />
+                      <CampNumar
+                        eticheta="Suma lunara"
+                        valoare={c.contributieLunara}
+                        sufix="EUR"
+                        pas={10}
+                        onChange={(v) =>
+                          set(
+                            "copii",
+                            p.copii.map((x) => (x.id === c.id ? { ...x, contributieLunara: v } : x)),
+                          )
+                        }
+                      />
+                      <CampSlider
+                        eticheta="Cat merge spre crestere"
+                        valoare={c.procentCrestere}
+                        min={0}
+                        max={100}
+                        onChange={(v) =>
+                          set(
+                            "copii",
+                            p.copii.map((x) => (x.id === c.id ? { ...x, procentCrestere: v } : x)),
+                          )
+                        }
+                      />
+                      <CampNumar
+                        eticheta="Ani de protectie inainte de 18 ani"
+                        ajutor="Cu atatia ani inainte de majorat, toti banii copilului trec in partea de siguranta, ca sa nu depinda de piata."
+                        valoare={c.aniProtectie}
+                        sufix="ani"
+                        onChange={(v) =>
+                          set(
+                            "copii",
+                            p.copii.map((x) => (x.id === c.id ? { ...x, aniProtectie: v } : x)),
+                          )
+                        }
+                      />
+                    </div>
+                  ))}
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="stress" className="rounded-xl border bg-card px-4">
+                <AccordionTrigger className="text-sm font-semibold">
+                  Test de rezistenta
+                </AccordionTrigger>
+                <AccordionContent className="space-y-5 pb-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <Label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                      Aplica o scadere de piata{" "}
+                      <Ajutor text="Simuleaza o scadere brusca a burselor intr-un anumit an. Afecteaza doar partea de crestere." />
+                    </Label>
+                    <Switch
+                      checked={p.stressActiv}
+                      onCheckedChange={(v) => set("stressActiv", v)}
+                    />
+                  </div>
+                  {p.stressActiv ? (
+                    <>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-medium text-muted-foreground">
+                          In ce an are loc scaderea
+                        </Label>
+                        <Select
+                          value={String(p.stressAn)}
+                          onValueChange={(v) => set("stressAn", Number(v))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Array.from({ length: p.orizontAni }, (_, i) => i + 1).map((an) => (
+                              <SelectItem key={an} value={String(an)}>
+                                Anul {an}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <CampSlider
+                        eticheta="Cat de mare este scaderea"
+                        valoare={p.stressProcent}
+                        min={0}
+                        max={50}
+                        onChange={(v) => set("stressProcent", v)}
+                      />
+                    </>
+                  ) : null}
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="imobil" className="rounded-xl border bg-card px-4">
+                <AccordionTrigger className="text-sm font-semibold">
+                  Obiectiv: cumpararea unei locuinte
+                </AccordionTrigger>
+                <AccordionContent className="space-y-5 pb-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <Label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                      Arata cat acopera capitalul{" "}
+                      <Ajutor text="Compara banii parintilor cu suma necesara pentru avans plus taxe. Fondul de urgenta si banii copiilor nu sunt inclusi." />
+                    </Label>
+                    <Switch
+                      checked={p.imobilActiv}
+                      onCheckedChange={(v) => set("imobilActiv", v)}
+                    />
+                  </div>
+                  {p.imobilActiv ? (
+                    <>
+                      <CampNumar
+                        eticheta="Pret estimat al locuintei"
+                        valoare={p.pretImobil}
+                        sufix="EUR"
+                        pas={5000}
+                        onChange={(v) => set("pretImobil", v)}
+                      />
+                      <CampSlider
+                        eticheta="Avans dorit"
+                        valoare={p.procentAvans}
+                        min={10}
+                        max={30}
+                        onChange={(v) => set("procentAvans", v)}
+                      />
+                      <CampNumar
+                        eticheta="Taxe si costuri de achizitie"
+                        valoare={p.procentCosturi}
+                        sufix="%"
+                        pas={0.1}
+                        onChange={(v) => set("procentCosturi", v)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Capital necesar: {formatEUR(rez.capitalNecesarImobil)}
+                      </p>
+                    </>
+                  ) : null}
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={salveazaScenariu} disabled={scenarii.length >= 3}>
+                Salveaza acest scenariu
+              </Button>
+              {scenarii.length > 0 ? (
+                <Button variant="ghost" onClick={() => setScenarii([])}>
+                  Sterge scenariile
+                </Button>
+              ) : null}
+              <Button variant="ghost" onClick={() => setP(parametriImpliciti())}>
+                Reseteaza
+              </Button>
+            </div>
+          </div>
+
+          {/* Rezultate */}
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Evolutia capitalului</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[340px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={dateGrafic} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(0 0% 0% / 0.07)" />
+                      <XAxis
+                        dataKey="an"
+                        tickFormatter={(v) => `An ${v}`}
+                        fontSize={11}
+                        stroke="currentColor"
+                        className="text-muted-foreground"
+                      />
+                      <YAxis
+                        fontSize={11}
+                        width={70}
+                        tickFormatter={(v) =>
+                          new Intl.NumberFormat("ro-RO", { notation: "compact" }).format(Number(v))
+                        }
+                        stroke="currentColor"
+                        className="text-muted-foreground"
+                      />
+                      <ChartTooltip
+                        formatter={(v: number) => formatEUR(Number(v))}
+                        labelFormatter={(l) => `Anul ${l}`}
+                        contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                      />
+                      <Legend wrapperStyle={{ fontSize: 12 }} />
+                      <Line
+                        type="monotone"
+                        dataKey="urgenta"
+                        name="Fond de urgenta"
+                        stroke={CULORI[0]}
+                        strokeWidth={2}
+                        dot={false}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="siguranta"
+                        name="Siguranta parinti"
+                        stroke={CULORI[1]}
+                        strokeWidth={2}
+                        dot={false}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="crestere"
+                        name="Crestere parinti"
+                        stroke={CULORI[2]}
+                        strokeWidth={2}
+                        dot={false}
+                      />
+                      {p.copii.map((c, i) => (
+                        <Line
+                          key={c.id}
+                          type="monotone"
+                          dataKey={`copil${i}`}
+                          name={`Copilul ${i + 1}`}
+                          stroke={CULORI[(i + 3) % CULORI.length]}
+                          strokeWidth={2}
+                          dot={false}
+                        />
+                      ))}
+                      {rezScenarii.map((s, i) => (
+                        <Line
+                          key={s.nume}
+                          type="monotone"
+                          dataKey={`scenariu${i}`}
+                          name={`${s.nume} (total)`}
+                          stroke={CULORI[i % CULORI.length]}
+                          strokeDasharray="5 4"
+                          strokeWidth={2}
+                          dot={false}
+                        />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+
+            {rezScenarii.length > 0 ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Comparatie de scenarii</CardTitle>
+                </CardHeader>
+                <CardContent className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Scenariu</TableHead>
+                        <TableHead className="text-right">Total final</TableHead>
+                        <TableHead className="text-right">Contribuit</TableHead>
+                        <TableHead className="text-right">Castig</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {[{ nume: "Scenariul actual", rez }, ...rezScenarii].map((s) => (
+                        <TableRow key={s.nume}>
+                          <TableCell className="font-medium">{s.nume}</TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {formatEUR(s.rez.totalFinal)}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {formatEUR(s.rez.totalContribuit)}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {formatEUR(s.rez.castig)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            ) : null}
+
+            <Card>
+              <CardHeader>
+                <button
+                  className="flex w-full items-center justify-between text-left"
+                  onClick={() => setTabelDeschis((v) => !v)}
+                >
+                  <CardTitle className="text-base">Detalii an cu an</CardTitle>
+                  <ChevronDown
+                    className={`h-4 w-4 transition-transform ${tabelDeschis ? "rotate-180" : ""}`}
+                  />
+                </button>
+              </CardHeader>
+              {tabelDeschis ? (
+                <CardContent className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>An</TableHead>
+                        <TableHead className="text-right">Urgenta</TableHead>
+                        <TableHead className="text-right">Siguranta</TableHead>
+                        <TableHead className="text-right">Crestere</TableHead>
+                        {p.copii.map((c, i) => (
+                          <TableHead key={c.id} className="text-right">
+                            Copilul {i + 1}
+                          </TableHead>
+                        ))}
+                        <TableHead className="text-right">Total familie</TableHead>
+                        {p.imobilActiv ? (
+                          <TableHead className="text-right">Acoperire locuinta</TableHead>
+                        ) : null}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {rez.ani.map((a) => (
+                        <TableRow key={a.an}>
+                          <TableCell className="font-medium">{a.an}</TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {formatEUR(a.fondUrgenta)}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {formatEUR(a.siguranta)}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {formatEUR(a.crestere)}
+                          </TableCell>
+                          {a.copii.map((v, i) => (
+                            <TableCell key={i} className="text-right tabular-nums">
+                              {formatEUR(v)}
+                            </TableCell>
+                          ))}
+                          <TableCell className="text-right font-semibold tabular-nums">
+                            {formatEUR(a.totalFamilie)}
+                          </TableCell>
+                          {p.imobilActiv ? (
+                            <TableCell className="text-right tabular-nums">
+                              {a.acoperireImobil !== null ? formatProcent(a.acoperireImobil) : "-"}
+                            </TableCell>
+                          ) : null}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              ) : null}
+            </Card>
+          </div>
+        </div>
+
+        <Separator className="my-8" />
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          Toate sumele sunt estimari brute, inainte de impozitare. Randamentele folosite sunt
+          ipoteze de lucru, nu garantii. Aplicatia este un instrument personal de explorare si nu
+          reprezinta o recomandare de investitie.
+        </p>
+      </main>
+    </TooltipProvider>
   );
 }
