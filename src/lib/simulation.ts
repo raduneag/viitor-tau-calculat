@@ -25,13 +25,6 @@ export type Parametri = {
   procentInitialCrestere: number; // 0-100
   faze: Faza[];
   copii: Copil[];
-  stressActiv: boolean;
-  stressAn: number;
-  stressProcent: number; // 0-50
-  imobilActiv: boolean;
-  pretImobil: number;
-  procentAvans: number;
-  procentCosturi: number;
 };
 
 export type RandAn = {
@@ -42,7 +35,6 @@ export type RandAn = {
   copii: number[];
   totalParinti: number;
   totalFamilie: number;
-  acoperireImobil: number | null;
 };
 
 export type Rezultat = {
@@ -51,7 +43,6 @@ export type Rezultat = {
   totalContribuit: number;
   castig: number;
   castigProcent: number;
-  capitalNecesarImobil: number;
 };
 
 const VARSTA_MAJORAT = 18;
@@ -91,9 +82,6 @@ export function simuleaza(p: Parametri): Rezultat {
   let totalContribuit =
     p.capitalInitial + p.fondUrgenta + p.copii.reduce((s, c) => s + c.sumaInitiala, 0);
 
-  const capitalNecesarImobil =
-    (p.pretImobil * p.procentAvans) / 100 + (p.pretImobil * p.procentCosturi) / 100;
-
   const snapshot = (an: number): RandAn => {
     const listaCopii = copii.map((c) => c.crestere + c.siguranta);
     const totalParinti = crestere + siguranta;
@@ -105,25 +93,12 @@ export function simuleaza(p: Parametri): Rezultat {
       copii: listaCopii,
       totalParinti,
       totalFamilie: totalParinti + urgenta + listaCopii.reduce((s, v) => s + v, 0),
-      acoperireImobil:
-        p.imobilActiv && capitalNecesarImobil > 0
-          ? (totalParinti / capitalNecesarImobil) * 100
-          : null,
     };
   };
 
   const ani: RandAn[] = [snapshot(0)];
 
   for (let luna = 1; luna <= totalLuni; luna++) {
-    // Corectie de piata la inceputul anului selectat
-    if (p.stressActiv && luna === (p.stressAn - 1) * 12 + 1) {
-      const f = 1 - p.stressProcent / 100;
-      crestere *= f;
-      copii.forEach((c) => {
-        c.crestere *= f;
-      });
-    }
-
     const faza = fazaPentruLuna(p.faze, luna, totalLuni);
     const contrib = faza ? faza.suma : 0;
     const spreCrestere = faza ? (contrib * faza.procentCrestere) / 100 : 0;
@@ -163,7 +138,6 @@ export function simuleaza(p: Parametri): Rezultat {
     totalContribuit,
     castig,
     castigProcent: totalContribuit > 0 ? (castig / totalContribuit) * 100 : 0,
-    capitalNecesarImobil,
   };
 }
 
@@ -184,11 +158,7 @@ export const parametriImpliciti = (): Parametri => ({
   fondUrgenta: 15000,
   capitalInitial: 25000,
   procentInitialCrestere: 50,
-  faze: [
-    { id: "f1", luni: 12, suma: 500, procentCrestere: 50 },
-    { id: "f2", luni: 27, suma: 500, procentCrestere: 70 },
-    { id: "f3", luni: 999, suma: 884.4, procentCrestere: 70 },
-  ],
+  faze: [{ id: "f1", luni: 999, suma: 500, procentCrestere: 70 }],
   copii: [
     {
       id: "c1",
@@ -207,11 +177,4 @@ export const parametriImpliciti = (): Parametri => ({
       aniProtectie: 2,
     },
   ],
-  stressActiv: false,
-  stressAn: 3,
-  stressProcent: 25,
-  imobilActiv: false,
-  pretImobil: 600000,
-  procentAvans: 20,
-  procentCosturi: 6.5,
 });

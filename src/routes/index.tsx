@@ -10,7 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { HelpCircle, Plus, Trash2, ChevronDown } from "lucide-react";
+import { HelpCircle, ChevronDown } from "lucide-react";
 
 import {
   Parametri,
@@ -25,15 +25,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
-import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -50,7 +42,7 @@ export const Route = createFileRoute("/")({
       {
         property: "og:description",
         content:
-          "Instrument personal de explorare: orizont pana la 15 ani, contributii in faze, test de rezistenta si obiectiv imobiliar.",
+          "Instrument personal de explorare: orizont pana la 15 ani, contributii lunare si conturi pentru copii.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -330,91 +322,33 @@ function Index() {
                 </AccordionTrigger>
                 <AccordionContent className="space-y-5 pb-5">
                   <p className="text-xs text-muted-foreground">
-                    Poti defini pana la 3 etape una dupa alta. Ultima etapa acopera automat restul
-                    perioadei simulate.
+                    Suma lunara pe care o pui deoparte pe toata perioada simulata. Durata este data
+                    de numarul de ani ales la „Setari generale".
                   </p>
-                  {p.faze.map((f, i) => (
-                    <div key={f.id} className="space-y-4 rounded-lg border border-dashed p-3">
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs font-semibold">Etapa {i + 1}</p>
-                        {p.faze.length > 1 && i > 0 ? (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() =>
-                              set(
-                                "faze",
-                                p.faze.filter((x) => x.id !== f.id),
-                              )
-                            }
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        ) : null}
-                      </div>
-                      {i < p.faze.length - 1 ? (
-                        <CampNumar
-                          eticheta="Cate luni dureaza"
-                          valoare={f.luni}
-                          sufix="luni"
-                          onChange={(v) =>
-                            set(
-                              "faze",
-                              p.faze.map((x) => (x.id === f.id ? { ...x, luni: v } : x)),
-                            )
-                          }
-                        />
-                      ) : (
-                        <p className="text-xs text-muted-foreground">
-                          Aceasta etapa dureaza pana la finalul perioadei simulate.
-                        </p>
-                      )}
-                      <CampNumar
-                        eticheta="Suma lunara"
-                        valoare={f.suma}
-                        sufix="EUR"
-                        pas={10}
-                        onChange={(v) =>
-                          set(
-                            "faze",
-                            p.faze.map((x) => (x.id === f.id ? { ...x, suma: v } : x)),
-                          )
-                        }
-                      />
-                      <CampSlider
-                        eticheta="Cat din suma merge spre crestere"
-                        valoare={f.procentCrestere}
-                        min={0}
-                        max={100}
-                        onChange={(v) =>
-                          set(
-                            "faze",
-                            p.faze.map((x) => (x.id === f.id ? { ...x, procentCrestere: v } : x)),
-                          )
-                        }
-                      />
-                    </div>
-                  ))}
-                  {p.faze.length < 3 ? (
-                    <Button
-                      variant="secondary"
-                      className="w-full"
-                      onClick={() =>
-                        set("faze", [
-                          ...p.faze,
-                          {
-                            id: `f${Date.now()}`,
-                            luni: 24,
-                            suma: (p.faze[p.faze.length - 1]?.suma ?? 500) + 300,
-                            procentCrestere: p.faze[p.faze.length - 1]?.procentCrestere ?? 70,
-                          },
-                        ])
-                      }
-                    >
-                      <Plus className="mr-1.5 h-4 w-4" /> Adauga o crestere de contributie
-                    </Button>
-                  ) : null}
+                  <CampNumar
+                    eticheta="Suma lunara"
+                    valoare={p.faze[0]?.suma ?? 0}
+                    sufix="EUR"
+                    pas={10}
+                    onChange={(v) =>
+                      set(
+                        "faze",
+                        p.faze.map((x, i) => (i === 0 ? { ...x, suma: v } : x)),
+                      )
+                    }
+                  />
+                  <CampSlider
+                    eticheta="Cat din suma merge spre crestere"
+                    valoare={p.faze[0]?.procentCrestere ?? 0}
+                    min={0}
+                    max={100}
+                    onChange={(v) =>
+                      set(
+                        "faze",
+                        p.faze.map((x, i) => (i === 0 ? { ...x, procentCrestere: v } : x)),
+                      )
+                    }
+                  />
                 </AccordionContent>
               </AccordionItem>
 
@@ -497,100 +431,6 @@ function Index() {
                 </AccordionContent>
               </AccordionItem>
 
-              <AccordionItem value="stress" className="rounded-xl border bg-card px-4">
-                <AccordionTrigger className="text-sm font-semibold">
-                  Test de rezistenta
-                </AccordionTrigger>
-                <AccordionContent className="space-y-5 pb-5">
-                  <div className="flex items-center justify-between gap-3">
-                    <Label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                      Aplica o scadere de piata{" "}
-                      <Ajutor text="Simuleaza o scadere brusca a burselor intr-un anumit an. Afecteaza doar partea de crestere." />
-                    </Label>
-                    <Switch
-                      checked={p.stressActiv}
-                      onCheckedChange={(v) => set("stressActiv", v)}
-                    />
-                  </div>
-                  {p.stressActiv ? (
-                    <>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-medium text-muted-foreground">
-                          In ce an are loc scaderea
-                        </Label>
-                        <Select
-                          value={String(p.stressAn)}
-                          onValueChange={(v) => set("stressAn", Number(v))}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {Array.from({ length: p.orizontAni }, (_, i) => i + 1).map((an) => (
-                              <SelectItem key={an} value={String(an)}>
-                                Anul {an}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <CampSlider
-                        eticheta="Cat de mare este scaderea"
-                        valoare={p.stressProcent}
-                        min={0}
-                        max={50}
-                        onChange={(v) => set("stressProcent", v)}
-                      />
-                    </>
-                  ) : null}
-                </AccordionContent>
-              </AccordionItem>
-
-              <AccordionItem value="imobil" className="rounded-xl border bg-card px-4">
-                <AccordionTrigger className="text-sm font-semibold">
-                  Obiectiv: cumpararea unei locuinte
-                </AccordionTrigger>
-                <AccordionContent className="space-y-5 pb-5">
-                  <div className="flex items-center justify-between gap-3">
-                    <Label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                      Arata cat acopera capitalul{" "}
-                      <Ajutor text="Compara banii parintilor cu suma necesara pentru avans plus taxe. Fondul de urgenta si banii copiilor nu sunt inclusi." />
-                    </Label>
-                    <Switch
-                      checked={p.imobilActiv}
-                      onCheckedChange={(v) => set("imobilActiv", v)}
-                    />
-                  </div>
-                  {p.imobilActiv ? (
-                    <>
-                      <CampNumar
-                        eticheta="Pret estimat al locuintei"
-                        valoare={p.pretImobil}
-                        sufix="EUR"
-                        pas={5000}
-                        onChange={(v) => set("pretImobil", v)}
-                      />
-                      <CampSlider
-                        eticheta="Avans dorit"
-                        valoare={p.procentAvans}
-                        min={10}
-                        max={30}
-                        onChange={(v) => set("procentAvans", v)}
-                      />
-                      <CampNumar
-                        eticheta="Taxe si costuri de achizitie"
-                        valoare={p.procentCosturi}
-                        sufix="%"
-                        pas={0.1}
-                        onChange={(v) => set("procentCosturi", v)}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Capital necesar: {formatEUR(rez.capitalNecesarImobil)}
-                      </p>
-                    </>
-                  ) : null}
-                </AccordionContent>
-              </AccordionItem>
             </Accordion>
 
             <div className="flex flex-wrap gap-2">
@@ -757,9 +597,6 @@ function Index() {
                           </TableHead>
                         ))}
                         <TableHead className="text-right">Total familie</TableHead>
-                        {p.imobilActiv ? (
-                          <TableHead className="text-right">Acoperire locuinta</TableHead>
-                        ) : null}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -783,11 +620,6 @@ function Index() {
                           <TableCell className="text-right font-semibold tabular-nums">
                             {formatEUR(a.totalFamilie)}
                           </TableCell>
-                          {p.imobilActiv ? (
-                            <TableCell className="text-right tabular-nums">
-                              {a.acoperireImobil !== null ? formatProcent(a.acoperireImobil) : "-"}
-                            </TableCell>
-                          ) : null}
                         </TableRow>
                       ))}
                     </TableBody>
