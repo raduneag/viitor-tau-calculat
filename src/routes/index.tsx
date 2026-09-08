@@ -36,7 +36,7 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Simuleaza in timp real cum creste capitalul familiei pe piloane: fond de urgenta, siguranta, crestere si conturi pentru copii.",
+          "Simuleaza in timp real cum creste capitalul familiei pe piloane: fond de urgenta, depozit bancar, investitie si conturi pentru copii.",
       },
       { property: "og:title", content: "Simulator de economisire si investitii pentru familie" },
       {
@@ -52,6 +52,8 @@ export const Route = createFileRoute("/")({
 });
 
 const CULORI = ["#3f6f86", "#4f8f7a", "#8a7b45", "#6c6191", "#9a6a58", "#5b7a94"];
+
+const NUME_COPII = ["Oscar", "Luca"];
 
 function Ajutor({ text }: { text: string }) {
   return (
@@ -185,22 +187,6 @@ function Index() {
     setScenarii((s) => [...s, { nume, parametri: structuredClone(p) }]);
   };
 
-  const setCopii = (n: number) => {
-    setP((s) => {
-      const copii = [...s.copii];
-      while (copii.length < n)
-        copii.push({
-          id: `c${Date.now()}${copii.length}`,
-          varsta: 3,
-          sumaInitiala: 700,
-          contributieLunara: 100,
-          procentCrestere: 100,
-          aniProtectie: 2,
-        });
-      return { ...s, copii: copii.slice(0, n) };
-    });
-  };
-
   return (
     <TooltipProvider delayDuration={150}>
       <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:py-12">
@@ -265,7 +251,7 @@ function Index() {
                     onChange={(v) => set("orizontAni", v)}
                   />
                   <CampSlider
-                    eticheta="Randament anual pentru partea de crestere"
+                    eticheta="Randament anual pentru partea de investitie"
                     ajutor="Cat presupunem ca aduce, in medie pe an, partea investita in fonduri de actiuni la nivel global."
                     valoare={p.randamentCrestere}
                     min={0}
@@ -274,8 +260,8 @@ function Index() {
                     onChange={(v) => set("randamentCrestere", v)}
                   />
                   <CampSlider
-                    eticheta="Randament anual pentru partea de siguranta"
-                    ajutor="Partea de siguranta este banii tinuti in depozite sau fonduri de piata monetara: castig mic, dar stabil."
+                    eticheta="Randament anual pentru partea in depozit bancar"
+                    ajutor="Partea in depozit bancar este banii tinuti in depozite sau fonduri de piata monetara: castig mic, dar stabil."
                     valoare={p.randamentSiguranta}
                     min={0}
                     max={6}
@@ -306,8 +292,8 @@ function Index() {
                     onChange={(v) => set("capitalInitial", v)}
                   />
                   <CampSlider
-                    eticheta="Din acesti bani, cat merge spre crestere"
-                    ajutor="Restul procentului merge automat spre partea de siguranta."
+                    eticheta="Din acesti bani, cat merge spre investitie"
+                    ajutor="Restul procentului merge automat spre partea in depozit bancar."
                     valoare={p.procentInitialCrestere}
                     min={0}
                     max={100}
@@ -338,7 +324,7 @@ function Index() {
                     }
                   />
                   <CampSlider
-                    eticheta="Cat din suma merge spre crestere"
+                    eticheta="Cat din suma merge spre investitie"
                     valoare={p.faze[0]?.procentCrestere ?? 0}
                     min={0}
                     max={100}
@@ -355,17 +341,9 @@ function Index() {
               <AccordionItem value="copii" className="rounded-xl border bg-card px-4">
                 <AccordionTrigger className="text-sm font-semibold">Copii</AccordionTrigger>
                 <AccordionContent className="space-y-5 pb-5">
-                  <CampSlider
-                    eticheta="Numar de copii"
-                    valoare={p.copii.length}
-                    min={0}
-                    max={4}
-                    unitate=""
-                    onChange={setCopii}
-                  />
                   {p.copii.map((c, i) => (
                     <div key={c.id} className="space-y-4 rounded-lg border border-dashed p-3">
-                      <p className="text-xs font-semibold">Copilul {i + 1}</p>
+                      <p className="text-xs font-semibold">{NUME_COPII[i] ?? `Copilul ${i + 1}`}</p>
                       <CampNumar
                         eticheta="Varsta acum"
                         ajutor="Perioada de economisire se calculeaza pana la 18 ani."
@@ -403,7 +381,7 @@ function Index() {
                         }
                       />
                       <CampSlider
-                        eticheta="Cat merge spre crestere"
+                        eticheta="Cat merge spre investitie"
                         valoare={c.procentCrestere}
                         min={0}
                         max={100}
@@ -416,7 +394,7 @@ function Index() {
                       />
                       <CampNumar
                         eticheta="Ani de protectie inainte de 18 ani"
-                        ajutor="Cu atatia ani inainte de majorat, toti banii copilului trec in partea de siguranta, ca sa nu depinda de piata."
+                        ajutor="Cu atatia ani inainte de majorat, toti banii copilului trec in depozit bancar, ca sa nu depinda de piata."
                         valoare={c.aniProtectie}
                         sufix="ani"
                         onChange={(v) =>
@@ -492,7 +470,7 @@ function Index() {
                       <Line
                         type="monotone"
                         dataKey="siguranta"
-                        name="Siguranta parinti"
+                        name="Depozit bancar parinti"
                         stroke={CULORI[1]}
                         strokeWidth={2}
                         dot={false}
@@ -500,7 +478,7 @@ function Index() {
                       <Line
                         type="monotone"
                         dataKey="crestere"
-                        name="Crestere parinti"
+                        name="Investitie parinti"
                         stroke={CULORI[2]}
                         strokeWidth={2}
                         dot={false}
@@ -510,7 +488,7 @@ function Index() {
                           key={c.id}
                           type="monotone"
                           dataKey={`copil${i}`}
-                          name={`Copilul ${i + 1}`}
+                          name={NUME_COPII[i] ?? `Copilul ${i + 1}`}
                           stroke={CULORI[(i + 3) % CULORI.length]}
                           strokeWidth={2}
                           dot={false}
@@ -589,11 +567,11 @@ function Index() {
                       <TableRow>
                         <TableHead>An</TableHead>
                         <TableHead className="text-right">Urgenta</TableHead>
-                        <TableHead className="text-right">Siguranta</TableHead>
-                        <TableHead className="text-right">Crestere</TableHead>
+                        <TableHead className="text-right">Depozit bancar</TableHead>
+                        <TableHead className="text-right">Investitie</TableHead>
                         {p.copii.map((c, i) => (
                           <TableHead key={c.id} className="text-right">
-                            Copilul {i + 1}
+                            {NUME_COPII[i] ?? `Copilul ${i + 1}`}
                           </TableHead>
                         ))}
                         <TableHead className="text-right">Total familie</TableHead>
