@@ -13,7 +13,6 @@ export type Copil = {
   sumaInitiala: number;
   contributieLunara: number;
   procentCrestere: number; // 0-100
-  aniProtectie: number;
 };
 
 export type Parametri = {
@@ -27,6 +26,14 @@ export type Parametri = {
   copii: Copil[];
 };
 
+export type Dobanzi = {
+  fondUrgenta: number;
+  siguranta: number;
+  crestere: number;
+  copii: number[];
+  total: number;
+};
+
 export type RandAn = {
   an: number;
   fondUrgenta: number;
@@ -35,6 +42,8 @@ export type RandAn = {
   copii: number[];
   totalParinti: number;
   totalFamilie: number;
+  // Dobanda (castigul din randamente) generata in cursul acelui an, pe fiecare pilon.
+  dobanzi: Dobanzi;
 };
 
 export type Rezultat = {
@@ -46,6 +55,9 @@ export type Rezultat = {
 };
 
 const VARSTA_MAJORAT = 18;
+// Cu cati ani inainte de 18 se muta banii copilului integral in depozit bancar.
+export const ANI_PROTECTIE = 2;
+export const VARSTA_PROTECTIE = VARSTA_MAJORAT - ANI_PROTECTIE; // 16
 
 export const rataLunara = (randamentAnualProcent: number) =>
   Math.pow(1 + randamentAnualProcent / 100, 1 / 12) - 1;
@@ -60,6 +72,10 @@ function fazaPentruLuna(faze: Faza[], luna: number, totalLuni: number) {
     start += durata;
   }
   return null;
+}
+
+function dobanziGoale(nrCopii: number): Dobanzi {
+  return { fondUrgenta: 0, siguranta: 0, crestere: 0, copii: Array(nrCopii).fill(0), total: 0 };
 }
 
 export function simuleaza(p: Parametri): Rezultat {
@@ -82,7 +98,10 @@ export function simuleaza(p: Parametri): Rezultat {
   let totalContribuit =
     p.capitalInitial + p.fondUrgenta + p.copii.reduce((s, c) => s + c.sumaInitiala, 0);
 
-  const snapshot = (an: number): RandAn => {
+  // Acumulatorul de dobanda pentru anul in curs.
+  let dobAn = dobanziGoale(copii.length);
+
+  const snapshot = (an: number, dob: Dobanzi): RandAn => {
     const listaCopii = copii.map((c) => c.crestere + c.siguranta);
     const totalParinti = crestere + siguranta;
     return {
@@ -93,10 +112,11 @@ export function simuleaza(p: Parametri): Rezultat {
       copii: listaCopii,
       totalParinti,
       totalFamilie: totalParinti + urgenta + listaCopii.reduce((s, v) => s + v, 0),
+      dobanzi: dob,
     };
   };
 
-  const ani: RandAn[] = [snapshot(0)];
+  const ani: RandAn[] = [snapshot(0, dobanziGoale(copii.length))];
 
   for (let luna = 1; luna <= totalLuni; luna++) {
     const faza = fazaPentruLuna(p.faze, luna, totalLuni);
@@ -104,15 +124,22 @@ export function simuleaza(p: Parametri): Rezultat {
     const spreCrestere = faza ? (contrib * faza.procentCrestere) / 100 : 0;
     const spreSiguranta = contrib - spreCrestere;
 
-    crestere = crestere * (1 + rC) + spreCrestere;
-    siguranta = siguranta * (1 + rS) + spreSiguranta;
-    urgenta = urgenta * (1 + rS);
+    const dobCrestere = crestere * rC;
+    const dobSiguranta = siguranta * rS;
+    const dobUrgenta = urgenta * rS;
+    crestere = crestere + dobCrestere + spreCrestere;
+    siguranta = siguranta + dobSiguranta + spreSiguranta;
+    urgenta = urgenta + dobUrgenta;
     totalContribuit += contrib;
 
-    for (const c of copii) {
-      if (luna > c.orizontLuni) continue;
+    dobAn.crestere += dobCrestere;
+    dobAn.siguranta += dobSiguranta;
+    dobAn.fondUrgenta += dobUrgenta;
+
+    copii.forEach((c, idx) => {
+      if (luna > c.orizontLuni) return;
       const luniRamase = c.orizontLuni - luna + 1;
-      if (!c.mutat && luniRamase <= c.cfg.aniProtectie * 12) {
+      if (!c.mutat && luniRamase <= ANI_PROTECTIE * 12) {
         c.siguranta += c.crestere;
         c.crestere = 0;
         c.mutat = true;
@@ -120,12 +147,23 @@ export function simuleaza(p: Parametri): Rezultat {
       const pc = c.mutat ? 0 : c.cfg.procentCrestere;
       const cc = (c.cfg.contributieLunara * pc) / 100;
       const cs = c.cfg.contributieLunara - cc;
-      c.crestere = c.crestere * (1 + rC) + cc;
-      c.siguranta = c.siguranta * (1 + rS) + cs;
+      const dc = c.crestere * rC;
+      const ds = c.siguranta * rS;
+      c.crestere = c.crestere + dc + cc;
+      c.siguranta = c.siguranta + ds + cs;
       totalContribuit += c.cfg.contributieLunara;
-    }
+      dobAn.copii[idx] = (dobAn.copii[idx] ?? 0) + dc + ds;
+    });
 
-    if (luna % 12 === 0) ani.push(snapshot(luna / 12));
+    if (luna % 12 === 0) {
+      dobAn.total =
+        dobAn.fondUrgenta +
+        dobAn.siguranta +
+        dobAn.crestere +
+        dobAn.copii.reduce((s, v) => s + v, 0);
+      ani.push(snapshot(luna / 12, dobAn));
+      dobAn = dobanziGoale(copii.length);
+    }
   }
 
   const ultim = ani[ani.length - 1]!;
@@ -166,7 +204,6 @@ export const parametriImpliciti = (): Parametri => ({
       sumaInitiala: 700,
       contributieLunara: 100,
       procentCrestere: 100,
-      aniProtectie: 2,
     },
     {
       id: "c2",
@@ -174,7 +211,6 @@ export const parametriImpliciti = (): Parametri => ({
       sumaInitiala: 700,
       contributieLunara: 100,
       procentCrestere: 100,
-      aniProtectie: 2,
     },
   ],
 });

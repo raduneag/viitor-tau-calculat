@@ -32,13 +32,13 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Simulator de economisire si investitii pentru familie" },
+      { title: "Planul de economisire si investitii al familiei Neag" },
       {
         name: "description",
         content:
-          "Simuleaza in timp real cum creste capitalul familiei pe piloane: fond de urgenta, depozit bancar, investitie si conturi pentru copii.",
+          "Simuleaza in timp real cum creste capitalul familiei Neag pe piloane: SAFE, DEPOT, GROW si conturile junior ale copiilor.",
       },
-      { property: "og:title", content: "Simulator de economisire si investitii pentru familie" },
+      { property: "og:title", content: "Planul de economisire si investitii al familiei Neag" },
       {
         property: "og:description",
         content:
@@ -54,6 +54,21 @@ export const Route = createFileRoute("/")({
 const CULORI = ["#3f6f86", "#4f8f7a", "#8a7b45", "#6c6191", "#9a6a58", "#5b7a94"];
 
 const NUME_COPII = ["Oscar", "Luca"];
+
+const PILON_SAFE = "Pilon SAFE";
+const PILON_DEPOT = "Pilon DEPOT";
+const PILON_GROW = "Pilon GROW";
+const pilonJunior = (i: number) => `Pilon JUNIOR ${NUME_COPII[i] ?? `Copil ${i + 1}`}`;
+
+const LEGENDA_PILONI: { nume: string; descriere: string }[] = [
+  { nume: `${PILON_SAFE} (de neatins)`, descriere: "Fondul de urgenta. Bani de siguranta, nu se ating, cresc doar din dobanda." },
+  { nume: PILON_DEPOT, descriere: "Cont depozit bancar. Randament mic, dar stabil." },
+  { nume: PILON_GROW, descriere: "Bani investiti in ETF. Randament mai mare, dar cu fluctuatii." },
+  {
+    nume: "Pilon JUNIOR Oscar / Pilon JUNIOR Luca",
+    descriere: "Conturile junior ale copiilor. La 16 ani trec automat in depozit bancar.",
+  },
+];
 
 function Ajutor({ text }: { text: string }) {
   return (
@@ -153,6 +168,7 @@ function Index() {
   const [p, setP] = useState<Parametri>(parametriImpliciti);
   const [scenarii, setScenarii] = useState<Scenariu[]>([]);
   const [tabelDeschis, setTabelDeschis] = useState(false);
+  const [dobanziDeschis, setDobanziDeschis] = useState(false);
 
   const set = <K extends keyof Parametri>(k: K, v: Parametri[K]) => setP((s) => ({ ...s, [k]: v }));
 
@@ -195,13 +211,28 @@ function Index() {
             Instrument personal de explorare
           </p>
           <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">
-            Planul de economisire si investitii al familiei
+            Planul de economisire si investitii al familiei Neag
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
             Modifica parametrii si vezi imediat cum evolueaza fiecare parte a capitalului familiei.
             Totul se calculeaza direct in acest dispozitiv, nimic nu se salveaza.
           </p>
         </header>
+
+        {/* Legenda pilonilor */}
+        <section className="mb-8 rounded-xl border bg-card p-4">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Cei patru piloni
+          </p>
+          <dl className="grid gap-3 sm:grid-cols-2">
+            {LEGENDA_PILONI.map((pilon) => (
+              <div key={pilon.nume} className="flex flex-col gap-0.5">
+                <dt className="text-sm font-semibold">{pilon.nume}</dt>
+                <dd className="text-xs text-muted-foreground">{pilon.descriere}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
 
         {/* Panou sumar */}
         <section className="mb-8 grid gap-4 sm:grid-cols-3">
@@ -251,8 +282,8 @@ function Index() {
                     onChange={(v) => set("orizontAni", v)}
                   />
                   <CampSlider
-                    eticheta="Randament anual pentru partea de investitie"
-                    ajutor="Cat presupunem ca aduce, in medie pe an, partea investita in fonduri de actiuni la nivel global."
+                    eticheta="Randament anual Pilon GROW"
+                    ajutor="Cat presupunem ca aduce, in medie pe an, partea investita in ETF de actiuni la nivel global."
                     valoare={p.randamentCrestere}
                     min={0}
                     max={12}
@@ -260,8 +291,8 @@ function Index() {
                     onChange={(v) => set("randamentCrestere", v)}
                   />
                   <CampSlider
-                    eticheta="Randament anual pentru partea in depozit bancar"
-                    ajutor="Partea in depozit bancar este banii tinuti in depozite sau fonduri de piata monetara: castig mic, dar stabil."
+                    eticheta="Randament anual Pilon DEPOT"
+                    ajutor="Pilon DEPOT sunt banii tinuti in depozit bancar sau fonduri de piata monetara: castig mic, dar stabil."
                     valoare={p.randamentSiguranta}
                     min={0}
                     max={6}
@@ -273,12 +304,12 @@ function Index() {
 
               <AccordionItem value="urgenta" className="rounded-xl border bg-card px-4">
                 <AccordionTrigger className="text-sm font-semibold">
-                  Fond de urgenta si capital initial
+                  Pilon SAFE si capital initial
                 </AccordionTrigger>
                 <AccordionContent className="space-y-5 pb-5">
                   <CampNumar
-                    eticheta="Fond de urgenta"
-                    ajutor="Banii pastrati pentru situatii neprevazute. Nu primesc niciodata sume noi, cresc doar din dobanda."
+                    eticheta="Pilon SAFE (de neatins)"
+                    ajutor="Fondul de urgenta. Bani de siguranta pentru situatii neprevazute, nu se ating, cresc doar din dobanda."
                     valoare={p.fondUrgenta}
                     sufix="EUR"
                     pas={100}
@@ -292,8 +323,8 @@ function Index() {
                     onChange={(v) => set("capitalInitial", v)}
                   />
                   <CampSlider
-                    eticheta="Din acesti bani, cat merge spre investitie"
-                    ajutor="Restul procentului merge automat spre partea in depozit bancar."
+                    eticheta="Din acesti bani, cat merge spre Pilon GROW"
+                    ajutor="Restul procentului merge automat spre Pilon DEPOT."
                     valoare={p.procentInitialCrestere}
                     min={0}
                     max={100}
@@ -304,7 +335,7 @@ function Index() {
 
               <AccordionItem value="contributii" className="rounded-xl border bg-card px-4">
                 <AccordionTrigger className="text-sm font-semibold">
-                  Cat puneti deoparte lunar
+                  Cat economisiti lunar
                 </AccordionTrigger>
                 <AccordionContent className="space-y-5 pb-5">
                   <p className="text-xs text-muted-foreground">
@@ -324,7 +355,7 @@ function Index() {
                     }
                   />
                   <CampSlider
-                    eticheta="Cat din suma merge spre investitie"
+                    eticheta="Cat din suma merge spre Pilon GROW"
                     valoare={p.faze[0]?.procentCrestere ?? 0}
                     min={0}
                     max={100}
@@ -343,7 +374,7 @@ function Index() {
                 <AccordionContent className="space-y-5 pb-5">
                   {p.copii.map((c, i) => (
                     <div key={c.id} className="space-y-4 rounded-lg border border-dashed p-3">
-                      <p className="text-xs font-semibold">{NUME_COPII[i] ?? `Copilul ${i + 1}`}</p>
+                      <p className="text-xs font-semibold">{pilonJunior(i)}</p>
                       <CampNumar
                         eticheta="Varsta acum"
                         ajutor="Perioada de economisire se calculeaza pana la 18 ani."
@@ -381,7 +412,7 @@ function Index() {
                         }
                       />
                       <CampSlider
-                        eticheta="Cat merge spre investitie"
+                        eticheta="Cat merge spre Pilon GROW"
                         valoare={c.procentCrestere}
                         min={0}
                         max={100}
@@ -392,18 +423,10 @@ function Index() {
                           )
                         }
                       />
-                      <CampNumar
-                        eticheta="Ani de protectie inainte de 18 ani"
-                        ajutor="Cu atatia ani inainte de majorat, toti banii copilului trec in depozit bancar, ca sa nu depinda de piata."
-                        valoare={c.aniProtectie}
-                        sufix="ani"
-                        onChange={(v) =>
-                          set(
-                            "copii",
-                            p.copii.map((x) => (x.id === c.id ? { ...x, aniProtectie: v } : x)),
-                          )
-                        }
-                      />
+                      <p className="text-xs text-muted-foreground">
+                        Nota: la 16 ani, toti banii copilului trec automat in Pilon DEPOT (depozit
+                        bancar), ca sa nu depinda de bursa in ultimii ani inainte de 18.
+                      </p>
                     </div>
                   ))}
                 </AccordionContent>
@@ -462,7 +485,7 @@ function Index() {
                       <Line
                         type="monotone"
                         dataKey="urgenta"
-                        name="Fond de urgenta"
+                        name={PILON_SAFE}
                         stroke={CULORI[0]}
                         strokeWidth={2}
                         dot={false}
@@ -470,7 +493,7 @@ function Index() {
                       <Line
                         type="monotone"
                         dataKey="siguranta"
-                        name="Depozit bancar parinti"
+                        name={PILON_DEPOT}
                         stroke={CULORI[1]}
                         strokeWidth={2}
                         dot={false}
@@ -478,7 +501,7 @@ function Index() {
                       <Line
                         type="monotone"
                         dataKey="crestere"
-                        name="Investitie parinti"
+                        name={PILON_GROW}
                         stroke={CULORI[2]}
                         strokeWidth={2}
                         dot={false}
@@ -488,7 +511,7 @@ function Index() {
                           key={c.id}
                           type="monotone"
                           dataKey={`copil${i}`}
-                          name={NUME_COPII[i] ?? `Copilul ${i + 1}`}
+                          name={pilonJunior(i)}
                           stroke={CULORI[(i + 3) % CULORI.length]}
                           strokeWidth={2}
                           dot={false}
@@ -566,12 +589,12 @@ function Index() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>An</TableHead>
-                        <TableHead className="text-right">Urgenta</TableHead>
-                        <TableHead className="text-right">Depozit bancar</TableHead>
-                        <TableHead className="text-right">Investitie</TableHead>
+                        <TableHead className="text-right">{PILON_SAFE}</TableHead>
+                        <TableHead className="text-right">{PILON_DEPOT}</TableHead>
+                        <TableHead className="text-right">{PILON_GROW}</TableHead>
                         {p.copii.map((c, i) => (
                           <TableHead key={c.id} className="text-right">
-                            {NUME_COPII[i] ?? `Copilul ${i + 1}`}
+                            {pilonJunior(i)}
                           </TableHead>
                         ))}
                         <TableHead className="text-right">Total familie</TableHead>
@@ -600,6 +623,70 @@ function Index() {
                           </TableCell>
                         </TableRow>
                       ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              ) : null}
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <button
+                  className="flex w-full items-center justify-between text-left"
+                  onClick={() => setDobanziDeschis((v) => !v)}
+                >
+                  <CardTitle className="text-base">Profit din dobanzi, an cu an</CardTitle>
+                  <ChevronDown
+                    className={`h-4 w-4 transition-transform ${dobanziDeschis ? "rotate-180" : ""}`}
+                  />
+                </button>
+              </CardHeader>
+              {dobanziDeschis ? (
+                <CardContent className="overflow-x-auto">
+                  <p className="mb-3 text-xs text-muted-foreground">
+                    Castigul generat de randamente in fiecare an, pe fiecare pilon (fara banii pusi
+                    deoparte din buzunar).
+                  </p>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>An</TableHead>
+                        <TableHead className="text-right">{PILON_SAFE}</TableHead>
+                        <TableHead className="text-right">{PILON_DEPOT}</TableHead>
+                        <TableHead className="text-right">{PILON_GROW}</TableHead>
+                        {p.copii.map((c, i) => (
+                          <TableHead key={c.id} className="text-right">
+                            {pilonJunior(i)}
+                          </TableHead>
+                        ))}
+                        <TableHead className="text-right">Total an</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {rez.ani
+                        .filter((a) => a.an > 0)
+                        .map((a) => (
+                          <TableRow key={a.an}>
+                            <TableCell className="font-medium">{a.an}</TableCell>
+                            <TableCell className="text-right tabular-nums">
+                              {formatEUR(a.dobanzi.fondUrgenta)}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums">
+                              {formatEUR(a.dobanzi.siguranta)}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums">
+                              {formatEUR(a.dobanzi.crestere)}
+                            </TableCell>
+                            {a.dobanzi.copii.map((v, i) => (
+                              <TableCell key={i} className="text-right tabular-nums">
+                                {formatEUR(v)}
+                              </TableCell>
+                            ))}
+                            <TableCell className="text-right font-semibold tabular-nums">
+                              {formatEUR(a.dobanzi.total)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
                     </TableBody>
                   </Table>
                 </CardContent>
