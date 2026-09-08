@@ -54,6 +54,9 @@ export const Route = createFileRoute("/")({
 });
 
 const CULORI = ["#3f6f86", "#4f8f7a", "#8a7b45", "#6c6191", "#9a6a58", "#5b7a94"];
+// Gri pentru scenariul "cont standard" (fara plan).
+const GRI = "#9ca3af";
+const SUFIX_STANDARD = " · cont standard";
 
 const NUME_COPII = ["Oscar", "Luca"];
 
@@ -553,7 +556,14 @@ function Index() {
                         labelFormatter={(l) => `Anul ${l}`}
                         contentStyle={{ fontSize: 12, borderRadius: 8 }}
                       />
-                      <Legend wrapperStyle={{ fontSize: 12 }} />
+                      <Legend
+                        wrapperStyle={{ fontSize: 12 }}
+                        formatter={(value: string) => (
+                          <span style={{ color: value.includes(SUFIX_STANDARD) ? GRI : undefined }}>
+                            {value}
+                          </span>
+                        )}
+                      />
                       <Line
                         type="monotone"
                         dataKey="urgenta"
@@ -586,12 +596,12 @@ function Index() {
                         strokeWidth={2}
                         dot={false}
                       />
-                      {/* Linii punctate: acelasi plan, dar cu banii intr-un cont standard */}
+                      {/* Linii punctate gri: acelasi plan, dar cu banii intr-un cont standard */}
                       <Line
                         type="monotone"
                         dataKey="urgentaStd"
-                        name={`${PILON_SAFE} · cont standard`}
-                        stroke={CULORI[0]}
+                        name={`${PILON_SAFE}${SUFIX_STANDARD}`}
+                        stroke={GRI}
                         strokeDasharray="4 4"
                         strokeWidth={1.5}
                         dot={false}
@@ -599,8 +609,8 @@ function Index() {
                       <Line
                         type="monotone"
                         dataKey="sigurantaStd"
-                        name={`${PILON_DEPOT} · cont standard`}
-                        stroke={CULORI[1]}
+                        name={`${PILON_DEPOT}${SUFIX_STANDARD}`}
+                        stroke={GRI}
                         strokeDasharray="4 4"
                         strokeWidth={1.5}
                         dot={false}
@@ -608,8 +618,8 @@ function Index() {
                       <Line
                         type="monotone"
                         dataKey="crestereStd"
-                        name={`${PILON_GROW} · cont standard`}
-                        stroke={CULORI[2]}
+                        name={`${PILON_GROW}${SUFIX_STANDARD}`}
+                        stroke={GRI}
                         strokeDasharray="4 4"
                         strokeWidth={1.5}
                         dot={false}
@@ -617,8 +627,8 @@ function Index() {
                       <Line
                         type="monotone"
                         dataKey="copilStd"
-                        name={`${PILON_JUNIOR} · cont standard`}
-                        stroke={CULORI[3]}
+                        name={`${PILON_JUNIOR}${SUFIX_STANDARD}`}
+                        stroke={GRI}
                         strokeDasharray="4 4"
                         strokeWidth={1.5}
                         dot={false}
