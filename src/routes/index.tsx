@@ -54,9 +54,6 @@ export const Route = createFileRoute("/")({
 });
 
 const CULORI = ["#3f6f86", "#4f8f7a", "#8a7b45", "#6c6191", "#9a6a58", "#5b7a94"];
-// Gri pentru scenariul "cont standard" (fara plan).
-const GRI = "#9ca3af";
-const SUFIX_STANDARD = " · cont standard";
 
 const NUME_COPII = ["Oscar", "Luca"];
 
@@ -182,24 +179,13 @@ function Index() {
   const set = <K extends keyof Parametri>(k: K, v: Parametri[K]) => setP((s) => ({ ...s, [k]: v }));
 
   const rez = useMemo(() => simuleaza(p), [p]);
-  // Acelasi plan, dar cu toti banii intr-un cont standard (Tagesgeld) - pentru comparatie.
-  const rezStandard = useMemo(
-    () =>
-      simuleaza({
-        ...p,
-        randamentCrestere: p.randamentStandard,
-        randamentSiguranta: p.randamentStandard,
-      }),
-    [p],
-  );
   const rezScenarii = useMemo(
     () => scenarii.map((s) => ({ nume: s.nume, rez: simuleaza(s.parametri) })),
     [scenarii],
   );
 
   const dateGrafic = useMemo(() => {
-    return rez.ani.map((a, i) => {
-      const std = rezStandard.ani[i];
+    return rez.ani.map((a) => {
       const rand: Record<string, number> = {
         an: a.an,
         urgenta: +a.fondUrgenta.toFixed(2),
@@ -208,44 +194,51 @@ function Index() {
         // O singura linie pentru copii - planul e identic, valoarea e per copil.
         copil: +(a.copii[0] ?? 0).toFixed(2),
       };
-      if (std) {
-        rand["urgentaStd"] = +std.fondUrgenta.toFixed(2);
-        rand["sigurantaStd"] = +std.siguranta.toFixed(2);
-        rand["crestereStd"] = +std.crestere.toFixed(2);
-        rand["copilStd"] = +(std.copii[0] ?? 0).toFixed(2);
-      }
       rezScenarii.forEach((s, si) => {
-        const val = s.rez.ani[i]?.totalFamilie;
+        const val = s.rez.ani[a.an]?.totalFamilie;
         if (val !== undefined) rand[`scenariu${si}`] = +val.toFixed(2);
       });
       return rand;
     });
-  }, [rez, rezStandard, rezScenarii]);
+  }, [rez, rezScenarii]);
 
   const piloniRezumat = useMemo(() => {
     const a = rez.ani[rez.ani.length - 1];
-    const s = rezStandard.ani[rezStandard.ani.length - 1];
     const cb = rez.contribuitPiloni;
-    const mk = (nume: string, valoare: number, contribuit: number, valoareStandard: number) => {
+    const mk = (nume: string, valoare: number, contribuit: number) => {
       const dobanda = valoare - contribuit;
       return {
         nume,
         valoare,
         contribuit,
         dobanda,
-        valoareStandard,
-        fataDeStandard: valoare - valoareStandard,
         crestereProcent: contribuit > 0 ? (dobanda / contribuit) * 100 : 0,
       };
     };
-    if (!a || !s) return [];
+    if (!a) return [];
     return [
-      mk(PILON_SAFE, a.fondUrgenta, cb.safe, s.fondUrgenta),
-      mk(PILON_DEPOT, a.siguranta, cb.depot, s.siguranta),
-      mk(PILON_GROW, a.crestere, cb.grow, s.crestere),
-      mk(PILON_JUNIOR, a.copii[0] ?? 0, cb.copii[0] ?? 0, s.copii[0] ?? 0),
+      mk(PILON_SAFE, a.fondUrgenta, cb.safe),
+      mk(PILON_DEPOT, a.siguranta, cb.depot),
+      mk(PILON_GROW, a.crestere, cb.grow),
+      mk(PILON_JUNIOR, a.copii[0] ?? 0, cb.copii[0] ?? 0),
     ];
-  }, [rez, rezStandard]);
+  }, [rez]);
+
+  // Comparatie: banii parintilor (Pilon SAFE + DEPOT + GROW, fara conturile copiilor)
+  // daca sunt doar pusi deoparte, fata de cat devin cu planul de investitii.
+  const comparatie = useMemo(() => {
+    const a = rez.ani[rez.ani.length - 1];
+    const cb = rez.contribuitPiloni;
+    const faraInvestitii = cb.safe + cb.depot + cb.grow;
+    const cuInvestitii = a ? a.fondUrgenta + a.siguranta + a.crestere : faraInvestitii;
+    const castig = cuInvestitii - faraInvestitii;
+    return {
+      faraInvestitii,
+      cuInvestitii,
+      castig,
+      castigProcent: faraInvestitii > 0 ? (castig / faraInvestitii) * 100 : 0,
+    };
+  }, [rez]);
 
   const dobanziGrafic = useMemo(
     () =>
@@ -365,7 +358,7 @@ function Index() {
                   />
                   <CampSlider
                     eticheta="Randament cont standard (Tagesgeld)"
-                    ajutor="Dobanda unui cont curent obisnuit. Se aplica direct la Pilon SAFE (fondul de urgenta sta acolo) si e folosita pentru comparatie: liniile punctate arata unde ai fi daca lasai toti banii asa, fara plan."
+                    ajutor="Dobanda unui cont curent obisnuit. Se aplica direct la Pilon SAFE (fondul de urgenta sta acolo, si creste doar cu aceasta rata)."
                     valoare={p.randamentStandard}
                     min={0}
                     max={6}
@@ -598,14 +591,7 @@ function Index() {
                         labelFormatter={(l) => `Anul ${l}`}
                         contentStyle={{ fontSize: 12, borderRadius: 8 }}
                       />
-                      <Legend
-                        wrapperStyle={{ fontSize: 12 }}
-                        formatter={(value: string) => (
-                          <span style={{ color: value.includes(SUFIX_STANDARD) ? GRI : undefined }}>
-                            {value}
-                          </span>
-                        )}
-                      />
+                      <Legend wrapperStyle={{ fontSize: 12 }} />
                       <Line
                         type="monotone"
                         dataKey="urgenta"
@@ -638,43 +624,6 @@ function Index() {
                         strokeWidth={2}
                         dot={false}
                       />
-                      {/* Linii punctate gri: acelasi plan, dar cu banii intr-un cont standard */}
-                      <Line
-                        type="monotone"
-                        dataKey="urgentaStd"
-                        name={`${PILON_SAFE}${SUFIX_STANDARD}`}
-                        stroke={GRI}
-                        strokeDasharray="4 4"
-                        strokeWidth={1.5}
-                        dot={false}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="sigurantaStd"
-                        name={`${PILON_DEPOT}${SUFIX_STANDARD}`}
-                        stroke={GRI}
-                        strokeDasharray="4 4"
-                        strokeWidth={1.5}
-                        dot={false}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="crestereStd"
-                        name={`${PILON_GROW}${SUFIX_STANDARD}`}
-                        stroke={GRI}
-                        strokeDasharray="4 4"
-                        strokeWidth={1.5}
-                        dot={false}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="copilStd"
-                        name={`${PILON_JUNIOR}${SUFIX_STANDARD}`}
-                        stroke={GRI}
-                        strokeDasharray="4 4"
-                        strokeWidth={1.5}
-                        dot={false}
-                      />
                       {rezScenarii.map((s, i) => (
                         <Line
                           key={s.nume}
@@ -691,12 +640,61 @@ function Index() {
                   </ResponsiveContainer>
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Liniile pline = planul cu investitii. Liniile punctate = aceiasi bani lasati
-                  intr-un cont standard ({formatProcent(p.randamentStandard)}), adica ce se intampla
-                  daca nu faci nimic. Linia „Pilon JUNIOR / copil" arata valoarea unui singur cont
-                  ({NUME_COPII.join(" si ")} au acelasi plan); in „Total familie" sunt numarati ambii
-                  copii.
+                  Fiecare linie = un pilon, cu planul de investitii. Linia „Pilon JUNIOR / copil"
+                  arata valoarea unui singur cont ({NUME_COPII.join(" si ")} au acelasi plan); in
+                  „Total familie" sunt numarati ambii copii.
                 </p>
+              </CardContent>
+            </Card>
+
+            {/* Cu investitii vs. fara investitii */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">
+                  Cu investitii vs. fara investitii, la finalul celor {p.orizontAni} ani
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-xs text-muted-foreground">
+                  Doar banii parintilor (Pilon SAFE + DEPOT + GROW), fara conturile copiilor.
+                  „Fara investitii" = exact aceleasi sume puse deoparte, dar lasate sa stea, fara
+                  castig.
+                </p>
+                {[
+                  {
+                    nume: "Fara investitii",
+                    val: comparatie.faraInvestitii,
+                    cls: "bg-muted-foreground/40",
+                  },
+                  { nume: "Cu investitii", val: comparatie.cuInvestitii, cls: "bg-primary" },
+                ].map((r) => {
+                  const maxv = Math.max(comparatie.cuInvestitii, comparatie.faraInvestitii, 1);
+                  return (
+                    <div key={r.nume} className="space-y-1">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="text-sm font-medium">{r.nume}</span>
+                        <span className="text-sm font-semibold tabular-nums">
+                          {formatEUR(r.val)}
+                        </span>
+                      </div>
+                      <div className="h-3 w-full overflow-hidden rounded-full bg-muted">
+                        <div
+                          className={`h-full rounded-full ${r.cls}`}
+                          style={{ width: `${(r.val / maxv) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+                <div className="rounded-lg bg-primary/10 p-3">
+                  <p className="text-sm font-semibold tabular-nums text-primary">
+                    + {formatEUR(comparatie.castig)} ({formatProcent(comparatie.castigProcent)})
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    In plus, doar din faptul ca banii lucreaza in loc sa stea &mdash; aceiasi bani
+                    pusi deoparte.
+                  </p>
+                </div>
               </CardContent>
             </Card>
 
@@ -735,16 +733,6 @@ function Index() {
                           + {formatEUR(pil.dobanda)} din dobanzi ({formatProcent(pil.crestereProcent)})
                         </span>
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        {pil.fataDeStandard >= 1 ? (
-                          <>
-                            Cu <span className="font-medium">{formatEUR(pil.fataDeStandard)}</span>{" "}
-                            mai mult decat intr-un cont standard.
-                          </>
-                        ) : (
-                          <>La fel ca un cont standard &mdash; banii chiar stau acolo.</>
-                        )}
-                      </p>
                     </div>
                   );
                 })}
