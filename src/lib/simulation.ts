@@ -33,8 +33,8 @@ export type Parametri = {
   procentInitialCrestere: number; // 0-100
   faze: Faza[];
   copii: Copil[];
-  // Sume suplimentare, in afara Sparplan-ului lunar, adaugate integral la Pilon GROW
-  // (de exemplu un bonus anual). Pana la 2 intrari, o data sau de doua ori pe an.
+  // Suma aditionala (bonus, castig extra) adaugata integral la Pilon GROW, o data pe an.
+  // Un singur element in lista.
   bonusuri: BonusAnual[];
 };
 
@@ -266,6 +266,5 @@ export const parametriImpliciti = (): Parametri => ({
   ],
   bonusuri: [
     { id: "b1", lunaInCicluAnual: 1, suma: 0 },
-    { id: "b2", lunaInCicluAnual: 1, suma: 0 },
   ],
 });
