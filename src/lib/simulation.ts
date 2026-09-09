@@ -7,6 +7,14 @@ export type Faza = {
   procentCrestere: number; // 0-100
 };
 
+export type BonusAnual = {
+  id: string;
+  // A cata luna a planului, numarand de la inceput (luna 1 = prima luna a simularii).
+  // Bonusul se repeta apoi in fiecare an, la acelasi punct din ciclul anual.
+  lunaInCicluAnual: number; // 1-12
+  suma: number; // se adauga integral la Pilon GROW, o singura data pe an
+};
+
 export type Copil = {
   id: string;
   varsta: number;
@@ -25,6 +33,9 @@ export type Parametri = {
   procentInitialCrestere: number; // 0-100
   faze: Faza[];
   copii: Copil[];
+  // Sume suplimentare, in afara Sparplan-ului lunar, adaugate integral la Pilon GROW
+  // (de exemplu un bonus anual). Pana la 2 intrari, o data sau de doua ori pe an.
+  bonusuri: BonusAnual[];
 };
 
 export type Dobanzi = {
@@ -148,14 +159,21 @@ export function simuleaza(p: Parametri): Rezultat {
     const spreCrestere = faza ? (contrib * faza.procentCrestere) / 100 : 0;
     const spreSiguranta = contrib - spreCrestere;
 
+    // Bonusuri anuale (de exemplu un bonus de la angajator): se aduna integral la Pilon
+    // GROW, o singura data pe an, in luna din ciclul anual configurata pentru fiecare bonus.
+    const pozitieInCiclu = ((luna - 1) % 12) + 1;
+    const bonusLunaAsta = p.bonusuri
+      .filter((b) => b.lunaInCicluAnual === pozitieInCiclu)
+      .reduce((s, b) => s + b.suma, 0);
+
     const dobCrestere = crestere * rC;
     const dobSiguranta = siguranta * rS;
     const dobUrgenta = urgenta * rSafe;
-    crestere = crestere + dobCrestere + spreCrestere;
+    crestere = crestere + dobCrestere + spreCrestere + bonusLunaAsta;
     siguranta = siguranta + dobSiguranta + spreSiguranta;
     urgenta = urgenta + dobUrgenta;
-    totalContribuit += contrib;
-    contribuitPiloni.grow += spreCrestere;
+    totalContribuit += contrib + bonusLunaAsta;
+    contribuitPiloni.grow += spreCrestere + bonusLunaAsta;
     contribuitPiloni.depot += spreSiguranta;
 
     dobAn.crestere += dobCrestere;
@@ -225,7 +243,11 @@ export const parametriImpliciti = (): Parametri => ({
   fondUrgenta: 15000,
   capitalInitial: 25000,
   procentInitialCrestere: 50,
-  faze: [{ id: "f1", luni: 999, suma: 500, procentCrestere: 70 }],
+  faze: [
+    { id: "f1", luni: 12, suma: 500, procentCrestere: 50 },
+    { id: "f2", luni: 27, suma: 500, procentCrestere: 70 },
+    { id: "f3", luni: 999, suma: 884.4, procentCrestere: 70 },
+  ],
   copii: [
     {
       id: "c1",
@@ -236,10 +258,14 @@ export const parametriImpliciti = (): Parametri => ({
     },
     {
       id: "c2",
-      varsta: 1,
+      varsta: 2,
       sumaInitiala: 700,
       contributieLunara: 100,
       procentCrestere: 100,
     },
+  ],
+  bonusuri: [
+    { id: "b1", lunaInCicluAnual: 1, suma: 0 },
+    { id: "b2", lunaInCicluAnual: 1, suma: 0 },
   ],
 });

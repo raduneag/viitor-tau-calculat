@@ -439,6 +439,48 @@ function Index() {
                       )
                     }
                   />
+
+                  <div className="space-y-4 border-t pt-4">
+                    <p className="text-xs text-muted-foreground">
+                      Sume suplimentare, in afara sumei lunare de mai sus, de exemplu un bonus anual
+                      de la angajator. Se aduna integral la Pilon GROW, o singura data pe an. Suma 0
+                      inseamna ca acel bonus nu e folosit. Poti configura pana la doua, daca primesti
+                      bonus de doua ori pe an.
+                    </p>
+                    {p.bonusuri.map((b, i) => (
+                      <div key={b.id} className="space-y-3 rounded-lg border border-dashed p-3">
+                        <p className="text-xs font-semibold">Bonus anual {i + 1}</p>
+                        <CampNumar
+                          eticheta="Suma"
+                          valoare={b.suma}
+                          sufix="EUR"
+                          pas={50}
+                          onChange={(v) =>
+                            set(
+                              "bonusuri",
+                              p.bonusuri.map((x) => (x.id === b.id ? { ...x, suma: v } : x)),
+                            )
+                          }
+                        />
+                        <CampSlider
+                          eticheta="In ce luna a planului vine, apoi se repeta anual"
+                          ajutor="Luna 1 e prima luna a planului, nu neaparat ianuarie. De exemplu, daca planul incepe in octombrie si bonusul vine in martie, alege luna 6."
+                          valoare={b.lunaInCicluAnual}
+                          min={1}
+                          max={12}
+                          unitate="din ciclul anual"
+                          onChange={(v) =>
+                            set(
+                              "bonusuri",
+                              p.bonusuri.map((x) =>
+                                x.id === b.id ? { ...x, lunaInCicluAnual: v } : x,
+                              ),
+                            )
+                          }
+                        />
+                      </div>
+                    ))}
+                  </div>
                 </AccordionContent>
               </AccordionItem>
 
