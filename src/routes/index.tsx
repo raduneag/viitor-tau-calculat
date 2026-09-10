@@ -44,7 +44,7 @@ export const Route = createFileRoute("/")({
       {
         property: "og:description",
         content:
-          "Instrument personal de explorare: orizont pana la 15 ani, contributii lunare si conturi pentru copii.",
+          "Instrument personal de explorare: orizont pana la 20 de ani, contributii lunare si conturi pentru copii.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -331,10 +331,10 @@ function Index() {
                 <AccordionContent className="space-y-5 pb-5">
                   <CampSlider
                     eticheta="Cati ani simulam"
-                    ajutor="Perioada pe care vrei sa vezi evolutia banilor, intre 1 si 15 ani."
+                    ajutor="Perioada pe care vrei sa vezi evolutia banilor, intre 1 si 20 de ani."
                     valoare={p.orizontAni}
                     min={1}
-                    max={15}
+                    max={20}
                     unitate="ani"
                     onChange={(v) => set("orizontAni", v)}
                   />
