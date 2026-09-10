@@ -168,6 +168,58 @@ function CampSlider({
   );
 }
 
+type TooltipGrafic = {
+  active?: boolean;
+  label?: string | number;
+  payload?: Array<{
+    dataKey?: string | number;
+    name?: string;
+    value?: number;
+    color?: string;
+    payload?: Record<string, number>;
+  }>;
+};
+
+function TooltipCapital({ active, label, payload }: TooltipGrafic) {
+  if (!active || !payload?.length) return null;
+  const rand = payload[0]?.payload;
+  return (
+    <div className="rounded-lg border bg-card p-2.5 text-xs shadow-sm">
+      <p className="mb-1 font-medium">Anul {label}</p>
+      <ul className="space-y-0.5">
+        {payload.map((e) => (
+          <li key={String(e.dataKey)} className="flex items-center justify-between gap-4">
+            <span className="flex items-center gap-1.5">
+              <span
+                className="inline-block h-2 w-2 shrink-0 rounded-full"
+                style={{ background: e.color }}
+              />
+              {e.name}
+            </span>
+            <span className="tabular-nums">{formatEUR(Number(e.value ?? 0))}</span>
+          </li>
+        ))}
+      </ul>
+      {rand ? (
+        <div className="mt-1.5 space-y-0.5 border-t pt-1.5 text-muted-foreground">
+          <div className="flex items-center justify-between gap-4">
+            <span>Total SAFE + DEPOT + GROW</span>
+            <span className="font-medium tabular-nums text-foreground">
+              {formatEUR(rand["totalParinti"] ?? 0)}
+            </span>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <span>Total JUNIOR ({NUME_COPII.join(" + ")})</span>
+            <span className="font-medium tabular-nums text-foreground">
+              {formatEUR(rand["totalJunior"] ?? 0)}
+            </span>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 type Scenariu = { nume: string; parametri: Parametri };
 
 function Index() {
@@ -193,6 +245,9 @@ function Index() {
         crestere: +a.crestere.toFixed(2),
         // O singura linie pentru copii - planul e identic, valoarea e per copil.
         copil: +(a.copii[0] ?? 0).toFixed(2),
+        // Doar pentru tooltip (nu sunt linii pe grafic).
+        totalParinti: +(a.fondUrgenta + a.siguranta + a.crestere).toFixed(2),
+        totalJunior: +a.copii.reduce((s, v) => s + v, 0).toFixed(2),
       };
       rezScenarii.forEach((s, si) => {
         const val = s.rez.ani[a.an]?.totalFamilie;
@@ -581,11 +636,7 @@ function Index() {
                         stroke="currentColor"
                         className="text-muted-foreground"
                       />
-                      <ChartTooltip
-                        formatter={(v: number) => formatEUR(Number(v))}
-                        labelFormatter={(l) => `Anul ${l}`}
-                        contentStyle={{ fontSize: 12, borderRadius: 8 }}
-                      />
+                      <ChartTooltip content={<TooltipCapital />} />
                       <Legend wrapperStyle={{ fontSize: 12 }} />
                       <Line
                         type="monotone"
