@@ -41,6 +41,9 @@ export type Parametri = {
   parintiContribuie: boolean;
   // Inflatia anuala presupusa (%), pentru pragul de pastrare a puterii de cumparare.
   inflatie: number;
+  // Scadere unica a pilonului GROW al parintilor, la sfarsitul anului `an`
+  // (nu progresiva). SAFE, DEPOT si conturile copiilor nu sunt afectate.
+  soc: { activ: boolean; procent: number; an: number };
 };
 
 export type Dobanzi = {
@@ -80,6 +83,8 @@ export type Rezultat = {
   castigProcent: number;
   // Cat s-a pus din buzunar in fiecare pilon, pe tot orizontul.
   contribuitPiloni: ContribuitPiloni;
+  // Valoarea GROW (parinti) chiar inainte si chiar dupa scadere; null daca nu s-a aplicat.
+  soc: { growInainte: number; growDupa: number } | null;
 };
 
 const VARSTA_MAJORAT = 18;
@@ -136,6 +141,8 @@ export function simuleaza(p: Parametri): Rezultat {
     depot: siguranta,
     copii: p.copii.map((c) => c.sumaInitiala),
   };
+
+  let socAplicat: Rezultat["soc"] = null;
 
   // Acumulatorul de dobanda pentru anul in curs.
   let dobAn = dobanziGoale(copii.length);
@@ -205,6 +212,12 @@ export function simuleaza(p: Parametri): Rezultat {
       dobAn.copii[idx] = (dobAn.copii[idx] ?? 0) + dc + ds;
     });
 
+    if (p.soc.activ && luna === p.soc.an * 12) {
+      const inainte = crestere;
+      crestere = crestere * (1 - p.soc.procent / 100);
+      socAplicat = { growInainte: inainte, growDupa: crestere };
+    }
+
     if (luna % 12 === 0) {
       dobAn.total =
         dobAn.fondUrgenta +
@@ -227,6 +240,7 @@ export function simuleaza(p: Parametri): Rezultat {
     castig,
     castigProcent: totalContribuit > 0 ? (castig / totalContribuit) * 100 : 0,
     contribuitPiloni,
+    soc: socAplicat,
   };
 }
 
@@ -237,6 +251,8 @@ export function simuleaza(p: Parametri): Rezultat {
 export function simuleazaLaRata(p: Parametri, rataAnualaProcent: number): Rezultat {
   return simuleaza({
     ...p,
+    // Referintele (cont standard, inflatie) nu includ scaderea pietei.
+    soc: { ...p.soc, activ: false },
     randamentCrestere: rataAnualaProcent,
     randamentSiguranta: rataAnualaProcent,
     randamentStandard: rataAnualaProcent,
@@ -289,4 +305,5 @@ export const parametriImpliciti = (): Parametri => ({
   ],
   parintiContribuie: true,
   inflatie: 2.8,
+  soc: { activ: false, procent: 25, an: 5 },
 });

@@ -838,6 +838,66 @@ function Index() {
               </CardContent>
             </Card>
 
+            {/* Ce se intampla la o scadere */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Ce se intampla la o scadere</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-xs text-muted-foreground">
+                  Scaderea se aplica o singura data, la sfarsitul anului ales, doar Pilonului GROW al
+                  parintilor. Apoi simularea continua normal, cu randamentul setat. SAFE si DEPOT nu
+                  sunt afectate.
+                </p>
+                <CampSlider
+                  eticheta="Marimea scaderii"
+                  valoare={p.soc.procent}
+                  min={5}
+                  max={60}
+                  onChange={(v) => set("soc", { ...p.soc, procent: v })}
+                />
+                <CampSlider
+                  eticheta="Anul scaderii"
+                  valoare={Math.min(p.soc.an, p.orizontAni)}
+                  min={1}
+                  max={p.orizontAni}
+                  unitate="an"
+                  onChange={(v) => set("soc", { ...p.soc, an: v })}
+                />
+                <Button
+                  variant={p.soc.activ ? "outline" : "default"}
+                  onClick={() => set("soc", { ...p.soc, activ: !p.soc.activ })}
+                >
+                  {p.soc.activ ? "Scoate scaderea" : "Aplica scaderea"}
+                </Button>
+                {p.soc.activ && rez.soc ? (
+                  <div className="space-y-1 rounded-lg bg-muted p-3 text-sm">
+                    <div className="flex justify-between gap-2">
+                      <span>GROW inainte de scadere</span>
+                      <span className="font-semibold tabular-nums">
+                        {formatEUR(rez.soc.growInainte)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span>GROW dupa scadere</span>
+                      <span className="font-semibold tabular-nums">
+                        {formatEUR(rez.soc.growDupa)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span>Total parinti la finalul celor {p.orizontAni} ani</span>
+                      <span className="font-semibold tabular-nums">
+                        {formatEUR(
+                          (rez.ani[rez.ani.length - 1]?.totalParinti ?? 0) +
+                            (rez.ani[rez.ani.length - 1]?.fondUrgenta ?? 0),
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
+
             {/* Ce aduce fiecare pilon */}
             <Card>
               <CardHeader>
