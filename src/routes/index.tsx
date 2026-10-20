@@ -432,6 +432,25 @@ function Index() {
                     pas={0.1}
                     onChange={(v) => set("randamentCrestere", v)}
                   />
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { v: 0, eticheta: "0%" },
+                      { v: 2, eticheta: "2%" },
+                      { v: 4, eticheta: "4% prudent" },
+                      { v: 6, eticheta: "6% media istorica" },
+                      { v: 8, eticheta: "8%" },
+                    ].map((b) => (
+                      <Button
+                        key={b.v}
+                        type="button"
+                        size="sm"
+                        variant={p.randamentCrestere === b.v ? "default" : "outline"}
+                        onClick={() => set("randamentCrestere", b.v)}
+                      >
+                        {b.eticheta}
+                      </Button>
+                    ))}
+                  </div>
                   <CampSlider
                     eticheta="Randament anual Pilon DEPOT"
                     ajutor="Pilon DEPOT sunt banii tinuti in depozit bancar sau fonduri de piata monetara: castig mic, dar stabil."
