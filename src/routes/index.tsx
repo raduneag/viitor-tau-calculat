@@ -238,6 +238,14 @@ function Index() {
     [scenarii],
   );
 
+  // Prag de inflatie: aceleasi depuneri ale parintilor, capitalizate la rata inflatiei.
+  // Arata cat trebuie sa ajunga capitalul doar ca sa-si pastreze puterea de cumparare.
+  // Fara contributii lunare, este exact capital_initial * (1 + inflatie)^ani.
+  const pragInflatie = useMemo(() => {
+    const r = simuleazaLaRata(p, p.inflatie);
+    return r.ani.map((a) => a.fondUrgenta + a.siguranta + a.crestere);
+  }, [p]);
+
   const dateGrafic = useMemo(() => {
     return rez.ani.map((a) => {
       const rand: Record<string, number> = {
@@ -249,6 +257,7 @@ function Index() {
         copil: +(a.copii[0] ?? 0).toFixed(2),
         // Doar pentru tooltip (nu sunt linii pe grafic).
         totalParinti: +(a.fondUrgenta + a.siguranta + a.crestere).toFixed(2),
+        pragInflatie: +(pragInflatie[a.an] ?? 0).toFixed(2),
         totalJunior: +a.copii.reduce((s, v) => s + v, 0).toFixed(2),
       };
       rezScenarii.forEach((s, si) => {
@@ -257,7 +266,7 @@ function Index() {
       });
       return rand;
     });
-  }, [rez, rezScenarii]);
+  }, [rez, rezScenarii, pragInflatie]);
 
   const piloniRezumat = useMemo(() => {
     const a = rez.ani[rez.ani.length - 1];
@@ -440,6 +449,15 @@ function Index() {
                     max={6}
                     pas={0.05}
                     onChange={(v) => set("randamentStandard", v)}
+                  />
+                  <CampSlider
+                    eticheta="Inflatie anuala presupusa"
+                    ajutor="Folosita pentru linia punctata Prag inflatie de pe grafic: cat trebuie sa ajunga banii parintilor doar ca sa-si pastreze puterea de cumparare."
+                    valoare={p.inflatie}
+                    min={0}
+                    max={8}
+                    pas={0.1}
+                    onChange={(v) => set("inflatie", v)}
                   />
                 </AccordionContent>
               </AccordionItem>
@@ -696,6 +714,23 @@ function Index() {
                         dataKey="copil"
                         name={PILON_JUNIOR}
                         stroke={CULORI[3]}
+                        strokeWidth={2}
+                        dot={false}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="totalParinti"
+                        name="Total SAFE + DEPOT + GROW"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                        dot={false}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="pragInflatie"
+                        name={`Prag inflatie, ${formatProcent(p.inflatie)} pe an`}
+                        stroke="currentColor"
+                        strokeDasharray="2 4"
                         strokeWidth={2}
                         dot={false}
                       />
