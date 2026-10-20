@@ -225,6 +225,19 @@ export function simuleaza(p: Parametri): Rezultat {
   };
 }
 
+// Aceleasi depuneri, lunar, dar toti banii (parinti si copii) capitalizati la o singura
+// rata. Cu rata contului standard da comparatia "aceleasi depuneri, intr-un cont la 0,7%";
+// cu rata inflatiei da cat ar trebui sa valoreze banii ca sa-si pastreze puterea de cumparare.
+// Bonusurile si contributiile raman exact cele din plan, doar ratele se inlocuiesc.
+export function simuleazaLaRata(p: Parametri, rataAnualaProcent: number): Rezultat {
+  return simuleaza({
+    ...p,
+    randamentCrestere: rataAnualaProcent,
+    randamentSiguranta: rataAnualaProcent,
+    randamentStandard: rataAnualaProcent,
+  });
+}
+
 export const formatEUR = (v: number) =>
   new Intl.NumberFormat("ro-RO", {
     minimumFractionDigits: 2,
@@ -238,10 +251,12 @@ export const formatProcent = (v: number) =>
 export const parametriImpliciti = (): Parametri => ({
   orizontAni: 7,
   randamentCrestere: 6,
-  randamentSiguranta: 2.7,
+  randamentSiguranta: 2.25,
   randamentStandard: 0.7,
   fondUrgenta: 15000,
-  capitalInitial: 25000,
+  // Fara Pilon SAFE: 15.000 EUR in DEPOT si 15.000 EUR in GROW, cu procentul de mai jos.
+  // Impreuna cu SAFE (15.000 EUR) parintii pornesc de la 45.000 EUR.
+  capitalInitial: 30000,
   procentInitialCrestere: 50,
   faze: [
     { id: "f1", luni: 12, suma: 500, procentCrestere: 50 },

@@ -20,6 +20,7 @@ import {
   formatProcent,
   parametriImpliciti,
   simuleaza,
+  simuleazaLaRata,
 } from "@/lib/simulation";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
@@ -279,21 +280,30 @@ function Index() {
     ];
   }, [rez]);
 
-  // Comparatie: banii parintilor (Pilon SAFE + DEPOT + GROW, fara conturile copiilor)
-  // daca sunt doar pusi deoparte, fata de cat devin cu planul de investitii.
+  // Comparatie: banii parintilor (Pilon SAFE + DEPOT + GROW, fara conturile copiilor).
+  // Trei referinte, nu doua:
+  //  1. cu planul de investitii;
+  //  2. aceleasi depuneri, lunar, dar toate lasate intr-un cont la rata contului standard
+  //     (un cont de economii plateste dobanda oricum, deci aceasta este comparatia corecta);
+  //  3. aceleasi sume, fara nicio dobanda (doar ca reper).
+  // Castigul planului se masoara fata de linia 2, nu fata de linia 3.
   const comparatie = useMemo(() => {
     const a = rez.ani[rez.ani.length - 1];
     const cb = rez.contribuitPiloni;
-    const faraInvestitii = cb.safe + cb.depot + cb.grow;
-    const cuInvestitii = a ? a.fondUrgenta + a.siguranta + a.crestere : faraInvestitii;
-    const castig = cuInvestitii - faraInvestitii;
+    const faraDobanda = cb.safe + cb.depot + cb.grow;
+    const cuPlanul = a ? a.fondUrgenta + a.siguranta + a.crestere : faraDobanda;
+    const rezCont = simuleazaLaRata(p, p.randamentStandard);
+    const aCont = rezCont.ani[rezCont.ani.length - 1];
+    const laContStandard = aCont ? aCont.fondUrgenta + aCont.siguranta + aCont.crestere : faraDobanda;
+    const castig = cuPlanul - laContStandard;
     return {
-      faraInvestitii,
-      cuInvestitii,
+      cuPlanul,
+      laContStandard,
+      faraDobanda,
       castig,
-      castigProcent: faraInvestitii > 0 ? (castig / faraInvestitii) * 100 : 0,
+      castigProcent: laContStandard > 0 ? (castig / laContStandard) * 100 : 0,
     };
-  }, [rez]);
+  }, [rez, p]);
 
   const dobanziGrafic = useMemo(
     () =>
@@ -408,7 +418,7 @@ function Index() {
                     valoare={p.randamentSiguranta}
                     min={0}
                     max={6}
-                    pas={0.1}
+                    pas={0.05}
                     onChange={(v) => set("randamentSiguranta", v)}
                   />
                   <CampSlider
@@ -697,24 +707,35 @@ function Index() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">
-                  Cu investitii vs. fara investitii, la finalul celor {p.orizontAni} ani
+                  Cu planul vs. cont de economii, la finalul celor {p.orizontAni} ani
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <p className="text-xs text-muted-foreground">
                   Doar banii parintilor (Pilon SAFE + DEPOT + GROW), fara conturile copiilor.
-                  „Fara investitii" = exact aceleasi sume puse deoparte, dar lasate sa stea, fara
-                  castig.
+                  Comparatia corecta este cu aceleasi depuneri, lasate intr-un cont la{" "}
+                  {formatProcent(p.randamentStandard)} pe an, pentru ca un cont de economii
+                  plateste dobanda si fara plan. „Fara nicio dobanda" este doar un reper.
                 </p>
                 {[
+                  { nume: "Cu planul", val: comparatie.cuPlanul, cls: "bg-primary" },
                   {
-                    nume: "Fara investitii",
-                    val: comparatie.faraInvestitii,
-                    cls: "bg-muted-foreground/40",
+                    nume: `Aceleasi depuneri, intr-un cont la ${formatProcent(p.randamentStandard)}`,
+                    val: comparatie.laContStandard,
+                    cls: "bg-muted-foreground/50",
                   },
-                  { nume: "Cu investitii", val: comparatie.cuInvestitii, cls: "bg-primary" },
+                  {
+                    nume: "Fara nicio dobanda (reper)",
+                    val: comparatie.faraDobanda,
+                    cls: "bg-muted-foreground/25",
+                  },
                 ].map((r) => {
-                  const maxv = Math.max(comparatie.cuInvestitii, comparatie.faraInvestitii, 1);
+                  const maxv = Math.max(
+                    comparatie.cuPlanul,
+                    comparatie.laContStandard,
+                    comparatie.faraDobanda,
+                    1,
+                  );
                   return (
                     <div key={r.nume} className="space-y-1">
                       <div className="flex items-baseline justify-between gap-2">
@@ -737,8 +758,8 @@ function Index() {
                     + {formatEUR(comparatie.castig)} ({formatProcent(comparatie.castigProcent)})
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    In plus, doar din faptul ca banii lucreaza in loc sa stea &mdash; aceiasi bani
-                    pusi deoparte.
+                    In plus fata de aceleasi depuneri lasate intr-un cont la{" "}
+                    {formatProcent(p.randamentStandard)} pe an.
                   </p>
                 </div>
               </CardContent>
