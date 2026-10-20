@@ -36,6 +36,15 @@ export type Parametri = {
   // Suma aditionala (bonus, castig extra) adaugata integral la Pilon GROW, o data pe an.
   // Un singur element in lista.
   bonusuri: BonusAnual[];
+  // Scenariul B: parintii nu mai contribuie lunar (contributia lunara devine 0).
+  // Suma aditionala anuala (bonusuri) nu este afectata.
+  scenariuB: boolean;
+  // Test de rezistenta: o scadere de piata, aplicata o singura data, doar Pilonului GROW.
+  corectieActiva: boolean;
+  corectieAn: number; // in ce an din orizont are loc scaderea (1-based)
+  corectieProcent: number; // 0-50, marimea scaderii
+  // Rata folosita doar ca referinta (prag de inflatie), nu afecteaza simularea.
+  randamentInflatie: number; // %
 };
 
 export type Dobanzi = {
@@ -77,7 +86,7 @@ export type Rezultat = {
   contribuitPiloni: ContribuitPiloni;
 };
 
-const VARSTA_MAJORAT = 18;
+export const VARSTA_MAJORAT = 18;
 // Cu cati ani inainte de 18 se muta banii copilului integral in depozit bancar.
 export const ANI_PROTECTIE = 2;
 export const VARSTA_PROTECTIE = VARSTA_MAJORAT - ANI_PROTECTIE; // 16
@@ -154,8 +163,19 @@ export function simuleaza(p: Parametri): Rezultat {
   const ani: RandAn[] = [snapshot(0, dobanziGoale(copii.length))];
 
   for (let luna = 1; luna <= totalLuni; luna++) {
+    // Test de rezistenta: la inceputul anului ales, scade instantaneu soldul din
+    // Pilon GROW (parinti si copiii care nu au trecut inca la partea sigura).
+    if (p.corectieActiva && luna === (p.corectieAn - 1) * 12 + 1) {
+      const f = 1 - p.corectieProcent / 100;
+      crestere *= f;
+      copii.forEach((c) => {
+        if (!c.mutat) c.crestere *= f;
+      });
+    }
+
     const faza = fazaPentruLuna(p.faze, luna, totalLuni);
-    const contrib = faza ? faza.suma : 0;
+    // Scenariul B: parintii nu mai contribuie lunar.
+    const contrib = p.scenariuB ? 0 : faza ? faza.suma : 0;
     const spreCrestere = faza ? (contrib * faza.procentCrestere) / 100 : 0;
     const spreSiguranta = contrib - spreCrestere;
 
@@ -225,6 +245,23 @@ export function simuleaza(p: Parametri): Rezultat {
   };
 }
 
+// Proiectie simpla, cu dobanda compusa lunara, pentru comparatii (nu foloseste piloni,
+// faze sau regula de protectie la 16 ani - doar o suma initiala plus o contributie lunara
+// fixa, la un singur randament, pe un numar fix de luni).
+export function valoareFinalaSimpla(
+  sumaInitiala: number,
+  contributieLunara: number,
+  nrLuni: number,
+  randamentAnualProcent: number,
+): number {
+  const r = rataLunara(randamentAnualProcent);
+  let v = sumaInitiala;
+  for (let i = 0; i < nrLuni; i++) v = v * (1 + r) + contributieLunara;
+  return v;
+}
+
+export const luniPanaLaMajorat = (varsta: number) => Math.max(0, (VARSTA_MAJORAT - varsta) * 12);
+
 export const formatEUR = (v: number) =>
   new Intl.NumberFormat("ro-RO", {
     minimumFractionDigits: 2,
@@ -238,10 +275,12 @@ export const formatProcent = (v: number) =>
 export const parametriImpliciti = (): Parametri => ({
   orizontAni: 7,
   randamentCrestere: 6,
-  randamentSiguranta: 2.7,
+  randamentSiguranta: 2.25,
   randamentStandard: 0.7,
+  randamentInflatie: 2.8,
   fondUrgenta: 15000,
-  capitalInitial: 25000,
+  // 30.000 EUR, impartite 50/50 intre DEPOT si GROW (15.000 fiecare).
+  capitalInitial: 30000,
   procentInitialCrestere: 50,
   faze: [
     { id: "f1", luni: 12, suma: 500, procentCrestere: 50 },
@@ -264,7 +303,9 @@ export const parametriImpliciti = (): Parametri => ({
       procentCrestere: 100,
     },
   ],
-  bonusuri: [
-    { id: "b1", lunaInCicluAnual: 1, suma: 0 },
-  ],
+  bonusuri: [{ id: "b1", lunaInCicluAnual: 1, suma: 0 }],
+  scenariuB: false,
+  corectieActiva: false,
+  corectieAn: 5,
+  corectieProcent: 25,
 });

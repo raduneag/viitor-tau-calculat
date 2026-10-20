@@ -18,17 +18,32 @@ import {
   Parametri,
   formatEUR,
   formatProcent,
+  luniPanaLaMajorat,
   parametriImpliciti,
   simuleaza,
+  valoareFinalaSimpla,
 } from "@/lib/simulation";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Separator } from "@/components/ui/separator";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Switch } from "@/components/ui/switch";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 export const Route = createFileRoute("/")({
@@ -80,7 +95,11 @@ function Ajutor({ text }: { text: string }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <button type="button" aria-label="Explicatie" className="text-muted-foreground/70 hover:text-primary">
+        <button
+          type="button"
+          aria-label="Explicatie"
+          className="text-muted-foreground/70 hover:text-primary"
+        >
           <HelpCircle className="h-3.5 w-3.5" />
         </button>
       </TooltipTrigger>
@@ -96,6 +115,7 @@ function CampNumar({
   onChange,
   sufix,
   pas = 1,
+  disabled = false,
 }: {
   eticheta: string;
   ajutor?: string;
@@ -103,6 +123,7 @@ function CampNumar({
   onChange: (v: number) => void;
   sufix?: string;
   pas?: number;
+  disabled?: boolean;
 }) {
   return (
     <div className="space-y-1.5">
@@ -115,7 +136,8 @@ function CampNumar({
           step={pas}
           value={Number.isFinite(valoare) ? valoare : 0}
           onChange={(e) => onChange(Number(e.target.value))}
-          className="pr-12"
+          disabled={disabled}
+          className="pr-12 disabled:opacity-50"
         />
         {sufix ? (
           <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
@@ -136,6 +158,7 @@ function CampSlider({
   pas = 1,
   unitate = "%",
   onChange,
+  disabled = false,
 }: {
   eticheta: string;
   ajutor?: string;
@@ -145,6 +168,7 @@ function CampSlider({
   pas?: number;
   unitate?: string;
   onChange: (v: number) => void;
+  disabled?: boolean;
 }) {
   return (
     <div className="space-y-2">
@@ -163,6 +187,8 @@ function CampSlider({
         max={max}
         step={pas}
         onValueChange={(v) => onChange(v[0] ?? min)}
+        disabled={disabled}
+        className={disabled ? "opacity-50" : undefined}
       />
     </div>
   );
@@ -279,21 +305,75 @@ function Index() {
     ];
   }, [rez]);
 
-  // Comparatie: banii parintilor (Pilon SAFE + DEPOT + GROW, fara conturile copiilor)
-  // daca sunt doar pusi deoparte, fata de cat devin cu planul de investitii.
+  // Acelasi plan (aceleasi depuneri, pentru toata familia), dar capitalizat la rata
+  // contului standard in loc de randamentele reale - pentru linia 2 a comparatiei.
+  const rezStandard = useMemo(
+    () =>
+      simuleaza({
+        ...p,
+        randamentCrestere: p.randamentStandard,
+        randamentSiguranta: p.randamentStandard,
+        corectieActiva: false,
+      }),
+    [p],
+  );
+
+  // Comparatie, la nivel de intreaga familie: cu planul, fata de aceleasi depuneri
+  // lasate intr-un cont standard, fata de suma bruta fara nicio dobanda (doar reper).
   const comparatie = useMemo(() => {
     const a = rez.ani[rez.ani.length - 1];
-    const cb = rez.contribuitPiloni;
-    const faraInvestitii = cb.safe + cb.depot + cb.grow;
-    const cuInvestitii = a ? a.fondUrgenta + a.siguranta + a.crestere : faraInvestitii;
-    const castig = cuInvestitii - faraInvestitii;
+    const aStd = rezStandard.ani[rezStandard.ani.length - 1];
+    const cuPlanul = a ? a.totalFamilie : 0;
+    const contStandard = aStd ? aStd.totalFamilie : 0;
+    const faraDobanda = rez.totalContribuit;
+    const castig = cuPlanul - contStandard;
+    const pragInflatie =
+      (p.capitalInitial + p.fondUrgenta) * Math.pow(1 + p.randamentInflatie / 100, p.orizontAni);
     return {
-      faraInvestitii,
-      cuInvestitii,
+      cuPlanul,
+      contStandard,
+      faraDobanda,
       castig,
-      castigProcent: faraInvestitii > 0 ? (castig / faraInvestitii) * 100 : 0,
+      castigProcent: contStandard > 0 ? (castig / contStandard) * 100 : 0,
+      pragInflatie,
     };
-  }, [rez]);
+  }, [rez, rezStandard, p.capitalInitial, p.fondUrgenta, p.randamentInflatie, p.orizontAni]);
+
+  // Comparatie pentru copii: cat ar fi ajuns aceiasi bani (suma stransa + contributia
+  // lunara) pana la 18 ani, intr-un cont standard sau intr-un ETF, fata de cat s-a depus
+  // efectiv. Independenta de orizontul de simulare ales mai sus.
+  const comparatieCopii = useMemo(() => {
+    return p.copii.map((c, i) => {
+      const nrLuni = luniPanaLaMajorat(c.varsta);
+      return {
+        nume: NUME_COPII[i] ?? `Copilul ${i + 1}`,
+        ani: nrLuni / 12,
+        depus: c.sumaInitiala + c.contributieLunara * nrLuni,
+        tagesgeld: valoareFinalaSimpla(
+          c.sumaInitiala,
+          c.contributieLunara,
+          nrLuni,
+          p.randamentStandard,
+        ),
+        etf4: valoareFinalaSimpla(c.sumaInitiala, c.contributieLunara, nrLuni, 4),
+        etf6: valoareFinalaSimpla(c.sumaInitiala, c.contributieLunara, nrLuni, 6),
+      };
+    });
+  }, [p.copii, p.randamentStandard]);
+
+  const comparatieCopiiTotal = useMemo(
+    () =>
+      comparatieCopii.reduce(
+        (acc, c) => ({
+          depus: acc.depus + c.depus,
+          tagesgeld: acc.tagesgeld + c.tagesgeld,
+          etf4: acc.etf4 + c.etf4,
+          etf6: acc.etf6 + c.etf6,
+        }),
+        { depus: 0, tagesgeld: 0, etf4: 0, etf6: 0 },
+      ),
+    [comparatieCopii],
+  );
 
   const dobanziGrafic = useMemo(
     () =>
@@ -380,9 +460,35 @@ function Index() {
         <div className="grid gap-8 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
           {/* Parametri */}
           <div className="space-y-4">
-            <Accordion type="multiple" defaultValue={["general", "contributii"]} className="space-y-3">
+            {/* Comutator scenariu */}
+            <div className="rounded-xl border bg-card p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <Label className="flex items-center gap-1.5 text-sm font-semibold">
+                    Scenariul B: parintii nu mai contribuie lunar
+                    <Ajutor text="Contributia lunara a parintilor devine 0 si se blocheaza. Capitalul initial al parintilor sta si lucreaza singur. Conturile copiilor continua neschimbat." />
+                  </Label>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {p.scenariuB
+                      ? "Activ: cei " +
+                        formatEUR(p.capitalInitial + p.fondUrgenta) +
+                        " ai parintilor stau si lucreaza singuri, fara depuneri lunare noi."
+                      : "Scenariul A (implicit): parintii continua sa depuna suma lunara de mai jos."}
+                  </p>
+                </div>
+                <Switch checked={p.scenariuB} onCheckedChange={(v) => set("scenariuB", v)} />
+              </div>
+            </div>
+
+            <Accordion
+              type="multiple"
+              defaultValue={["general", "contributii"]}
+              className="space-y-3"
+            >
               <AccordionItem value="general" className="rounded-xl border bg-card px-4">
-                <AccordionTrigger className="text-sm font-semibold">Setari generale</AccordionTrigger>
+                <AccordionTrigger className="text-sm font-semibold">
+                  Setari generale
+                </AccordionTrigger>
                 <AccordionContent className="space-y-5 pb-5">
                   <CampSlider
                     eticheta="Cati ani simulam"
@@ -393,15 +499,34 @@ function Index() {
                     unitate="ani"
                     onChange={(v) => set("orizontAni", v)}
                   />
-                  <CampSlider
-                    eticheta="Randament anual Pilon GROW"
-                    ajutor="Cat presupunem ca aduce, in medie pe an, partea investita in ETF de actiuni la nivel global."
-                    valoare={p.randamentCrestere}
-                    min={0}
-                    max={12}
-                    pas={0.1}
-                    onChange={(v) => set("randamentCrestere", v)}
-                  />
+                  <div className="space-y-2">
+                    <CampSlider
+                      eticheta="Randament anual Pilon GROW"
+                      ajutor="Cat presupunem ca aduce, in medie pe an, partea investita in ETF de actiuni la nivel global. Randamentul GROW e singura necunoscuta reala a planului."
+                      valoare={p.randamentCrestere}
+                      min={0}
+                      max={12}
+                      pas={0.1}
+                      onChange={(v) => set("randamentCrestere", v)}
+                    />
+                    <div className="flex flex-wrap gap-1.5">
+                      {[0, 2, 4, 6, 8].map((v) => (
+                        <Button
+                          key={v}
+                          type="button"
+                          size="sm"
+                          variant={p.randamentCrestere === v ? "default" : "outline"}
+                          className="h-7 px-2.5 text-xs"
+                          onClick={() => set("randamentCrestere", v)}
+                        >
+                          {v}%
+                        </Button>
+                      ))}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      4% este scenariul prudent folosit ca referinta in document.
+                    </p>
+                  </div>
                   <CampSlider
                     eticheta="Randament anual Pilon DEPOT"
                     ajutor="Pilon DEPOT sunt banii tinuti in depozit bancar sau fonduri de piata monetara: castig mic, dar stabil."
@@ -419,6 +544,15 @@ function Index() {
                     max={6}
                     pas={0.05}
                     onChange={(v) => set("randamentStandard", v)}
+                  />
+                  <CampSlider
+                    eticheta="Rata inflatiei (prag de referinta)"
+                    ajutor="Cat trebuie sa creasca capitalul initial al parintilor doar ca sa isi pastreze puterea de cumparare. Nu afecteaza simularea, e doar un reper in cardul de comparatie."
+                    valoare={p.randamentInflatie}
+                    min={0}
+                    max={6}
+                    pas={0.1}
+                    onChange={(v) => set("randamentInflatie", v)}
                   />
                 </AccordionContent>
               </AccordionItem>
@@ -462,12 +596,22 @@ function Index() {
                   <p className="text-xs text-muted-foreground">
                     Suma lunara pe care o pui deoparte pe toata perioada simulata. Durata este data
                     de numarul de ani ales la „Setari generale".
+                    {p.scenariuB ? (
+                      <>
+                        {" "}
+                        <span className="font-medium text-foreground">
+                          Dezactivata in Scenariul B
+                        </span>{" "}
+                        &mdash; contributia lunara a parintilor e 0.
+                      </>
+                    ) : null}
                   </p>
                   <CampNumar
                     eticheta="Suma lunara"
                     valoare={p.faze[0]?.suma ?? 0}
                     sufix="EUR"
                     pas={10}
+                    disabled={p.scenariuB}
                     onChange={(v) =>
                       set(
                         "faze",
@@ -480,6 +624,7 @@ function Index() {
                     valoare={p.faze[0]?.procentCrestere ?? 0}
                     min={0}
                     max={100}
+                    disabled={p.scenariuB}
                     onChange={(v) =>
                       set(
                         "faze",
@@ -493,8 +638,8 @@ function Index() {
                       <p className="text-xs font-semibold">Suma aditionala</p>
                       <p className="text-xs text-muted-foreground">
                         O suma single care se pune deoparte si se investeste in Pilon GROW; de
-                        exemplu un bonus sau un castig extra. Se adauga o data pe an, in luna
-                        aleasa mai jos. Suma 0 inseamna ca nu e folosita.
+                        exemplu un bonus sau un castig extra. Se adauga o data pe an, in luna aleasa
+                        mai jos. Suma 0 inseamna ca nu e folosita.
                       </p>
                       <CampNumar
                         eticheta="Suma"
@@ -567,7 +712,9 @@ function Index() {
                         onChange={(v) =>
                           set(
                             "copii",
-                            p.copii.map((x) => (x.id === c.id ? { ...x, contributieLunara: v } : x)),
+                            p.copii.map((x) =>
+                              x.id === c.id ? { ...x, contributieLunara: v } : x,
+                            ),
                           )
                         }
                       />
@@ -592,6 +739,46 @@ function Index() {
                 </AccordionContent>
               </AccordionItem>
 
+              <AccordionItem value="scadere" className="rounded-xl border bg-card px-4">
+                <AccordionTrigger className="text-sm font-semibold">
+                  Ce se intampla la o scadere
+                </AccordionTrigger>
+                <AccordionContent className="space-y-5 pb-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <Label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                      Aplica o scadere de piata{" "}
+                      <Ajutor text="Simuleaza o scadere brusca a bursei, o singura data, intr-un anumit an. Afecteaza doar Pilonul GROW: al parintilor si al copiilor care nu au trecut inca la partea sigura (dupa 16 ani)." />
+                    </Label>
+                    <Switch
+                      checked={p.corectieActiva}
+                      onCheckedChange={(v) => set("corectieActiva", v)}
+                    />
+                  </div>
+                  {p.corectieActiva ? (
+                    <>
+                      <CampSlider
+                        eticheta="In ce an are loc scaderea"
+                        valoare={Math.min(p.corectieAn, p.orizontAni)}
+                        min={1}
+                        max={p.orizontAni}
+                        unitate="an"
+                        onChange={(v) => set("corectieAn", v)}
+                      />
+                      <CampSlider
+                        eticheta="Cat de mare e scaderea"
+                        valoare={p.corectieProcent}
+                        min={0}
+                        max={50}
+                        onChange={(v) => set("corectieProcent", v)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        La inceputul anului ales, Pilon GROW scade instantaneu cu procentul de mai
+                        sus, apoi continua sa creasca normal, cu randamentul setat.
+                      </p>
+                    </>
+                  ) : null}
+                </AccordionContent>
+              </AccordionItem>
             </Accordion>
 
             <div className="flex flex-wrap gap-2">
@@ -693,28 +880,28 @@ function Index() {
               </CardContent>
             </Card>
 
-            {/* Cu investitii vs. fara investitii */}
+            {/* Cu planul vs. aceleasi depuneri intr-un cont standard */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">
-                  Cu investitii vs. fara investitii, la finalul celor {p.orizontAni} ani
+                  Cu planul vs. fara investitii, la finalul celor {p.orizontAni} ani
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <p className="text-xs text-muted-foreground">
-                  Doar banii parintilor (Pilon SAFE + DEPOT + GROW), fara conturile copiilor.
-                  „Fara investitii" = exact aceleasi sume puse deoparte, dar lasate sa stea, fara
-                  castig.
+                  Intreaga familie (toti cei patru piloni). Contul ING plateste{" "}
+                  {formatProcent(p.randamentStandard)} oricum &mdash; comparatia corecta nu e cu
+                  banii sub saltea, ci cu aceleasi depuneri lasate intr-un cont standard.
                 </p>
                 {[
+                  { nume: "Cu planul", val: comparatie.cuPlanul, cls: "bg-primary" },
                   {
-                    nume: "Fara investitii",
-                    val: comparatie.faraInvestitii,
+                    nume: `Aceleasi depuneri, intr-un cont la ${formatProcent(p.randamentStandard)}`,
+                    val: comparatie.contStandard,
                     cls: "bg-muted-foreground/40",
                   },
-                  { nume: "Cu investitii", val: comparatie.cuInvestitii, cls: "bg-primary" },
                 ].map((r) => {
-                  const maxv = Math.max(comparatie.cuInvestitii, comparatie.faraInvestitii, 1);
+                  const maxv = Math.max(comparatie.cuPlanul, comparatie.contStandard, 1);
                   return (
                     <div key={r.nume} className="space-y-1">
                       <div className="flex items-baseline justify-between gap-2">
@@ -737,9 +924,21 @@ function Index() {
                     + {formatEUR(comparatie.castig)} ({formatProcent(comparatie.castigProcent)})
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    In plus, doar din faptul ca banii lucreaza in loc sa stea &mdash; aceiasi bani
-                    pusi deoparte.
+                    In plus fata de un cont standard, cu exact aceleasi depuneri.
                   </p>
+                </div>
+                <div className="space-y-1 border-t pt-3 text-xs text-muted-foreground">
+                  <div className="flex items-center justify-between gap-4">
+                    <span>Fara nicio dobanda (doar ca reper, suma bruta pusa deoparte)</span>
+                    <span className="tabular-nums">{formatEUR(comparatie.faraDobanda)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <span>
+                      Prag inflatie, {formatProcent(p.randamentInflatie)} pe an (capitalul initial
+                      al parintilor, ca sa isi pastreze puterea de cumparare)
+                    </span>
+                    <span className="tabular-nums">{formatEUR(comparatie.pragInflatie)}</span>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -776,16 +975,82 @@ function Index() {
                       <div className="flex flex-wrap justify-between gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
                         <span>Pus deoparte: {formatEUR(pil.contribuit)}</span>
                         <span className="font-medium text-primary">
-                          + {formatEUR(pil.dobanda)} din dobanzi ({formatProcent(pil.crestereProcent)})
+                          + {formatEUR(pil.dobanda)} din dobanzi (
+                          {formatProcent(pil.crestereProcent)})
                         </span>
                       </div>
                     </div>
                   );
                 })}
                 <p className="text-xs text-muted-foreground">
-                  Randamentul „Pilon JUNIOR / copil" e per copil; suma se aplica si lui Oscar, si lui
-                  Luca.
+                  Randamentul „Pilon JUNIOR / copil" e per copil; suma se aplica si lui Oscar, si
+                  lui Luca.
                 </p>
+              </CardContent>
+            </Card>
+
+            {/* Comparatie pentru copii, la 18 ani */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Comparatie pentru copii, la 18 ani</CardTitle>
+              </CardHeader>
+              <CardContent className="overflow-x-auto">
+                <p className="mb-3 text-xs text-muted-foreground">
+                  Cat ar ajunge aceeasi suma stransa plus contributia lunara, pana la 18 ani, in
+                  diverse scenarii. Independent de orizontul de simulare ales mai sus.
+                </p>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead></TableHead>
+                      <TableHead className="text-right">Depus efectiv</TableHead>
+                      <TableHead className="text-right">
+                        Tagesgeld {formatProcent(p.randamentStandard)}
+                      </TableHead>
+                      <TableHead className="text-right">ETF la 4%</TableHead>
+                      <TableHead className="text-right">ETF la 6%</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {comparatieCopii.map((c) => (
+                      <TableRow key={c.nume}>
+                        <TableCell className="font-medium">
+                          {c.nume}
+                          <span className="ml-1 font-normal text-muted-foreground">
+                            ({c.ani.toLocaleString("ro-RO")} ani pana la 18)
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {formatEUR(c.depus)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {formatEUR(c.tagesgeld)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {formatEUR(c.etf4)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {formatEUR(c.etf6)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    <TableRow>
+                      <TableCell className="font-semibold">Impreuna</TableCell>
+                      <TableCell className="text-right font-semibold tabular-nums">
+                        {formatEUR(comparatieCopiiTotal.depus)}
+                      </TableCell>
+                      <TableCell className="text-right font-semibold tabular-nums">
+                        {formatEUR(comparatieCopiiTotal.tagesgeld)}
+                      </TableCell>
+                      <TableCell className="text-right font-semibold tabular-nums">
+                        {formatEUR(comparatieCopiiTotal.etf4)}
+                      </TableCell>
+                      <TableCell className="text-right font-semibold tabular-nums">
+                        {formatEUR(comparatieCopiiTotal.etf6)}
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
               </CardContent>
             </Card>
 
@@ -916,8 +1181,15 @@ function Index() {
                   </p>
                   <div className="h-[300px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={dobanziGrafic} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(0 0% 0% / 0.07)" vertical={false} />
+                      <BarChart
+                        data={dobanziGrafic}
+                        margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+                      >
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          stroke="hsl(0 0% 0% / 0.07)"
+                          vertical={false}
+                        />
                         <XAxis
                           dataKey="an"
                           tickFormatter={(v) => `An ${v}`}
@@ -929,7 +1201,9 @@ function Index() {
                           fontSize={11}
                           width={70}
                           tickFormatter={(v) =>
-                            new Intl.NumberFormat("ro-RO", { notation: "compact" }).format(Number(v))
+                            new Intl.NumberFormat("ro-RO", { notation: "compact" }).format(
+                              Number(v),
+                            )
                           }
                           stroke="currentColor"
                           className="text-muted-foreground"
