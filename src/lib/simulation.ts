@@ -36,6 +36,11 @@ export type Parametri = {
   // Suma aditionala (bonus, castig extra) adaugata integral la Pilon GROW, o data pe an.
   // Un singur element in lista.
   bonusuri: BonusAnual[];
+  // Fals = scenariul B: parintii nu mai pun nimic lunar, conturile copiilor continua.
+  // Bonusurile anuale nu sunt afectate.
+  parintiContribuie: boolean;
+  // Inflatia anuala presupusa (%), pentru pragul de pastrare a puterii de cumparare.
+  inflatie: number;
 };
 
 export type Dobanzi = {
@@ -155,7 +160,7 @@ export function simuleaza(p: Parametri): Rezultat {
 
   for (let luna = 1; luna <= totalLuni; luna++) {
     const faza = fazaPentruLuna(p.faze, luna, totalLuni);
-    const contrib = faza ? faza.suma : 0;
+    const contrib = faza && p.parintiContribuie ? faza.suma : 0;
     const spreCrestere = faza ? (contrib * faza.procentCrestere) / 100 : 0;
     const spreSiguranta = contrib - spreCrestere;
 
@@ -282,4 +287,6 @@ export const parametriImpliciti = (): Parametri => ({
   bonusuri: [
     { id: "b1", lunaInCicluAnual: 1, suma: 0 },
   ],
+  parintiContribuie: true,
+  inflatie: 2.8,
 });

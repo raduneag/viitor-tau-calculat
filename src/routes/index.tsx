@@ -24,6 +24,7 @@ import {
 } from "@/lib/simulation";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -394,6 +395,16 @@ function Index() {
               <AccordionItem value="general" className="rounded-xl border bg-card px-4">
                 <AccordionTrigger className="text-sm font-semibold">Setari generale</AccordionTrigger>
                 <AccordionContent className="space-y-5 pb-5">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="parinti-fara-lunar"
+                      checked={!p.parintiContribuie}
+                      onCheckedChange={(v) => set("parintiContribuie", v !== true)}
+                    />
+                    <Label htmlFor="parinti-fara-lunar" className="text-sm">
+                      Parintii nu mai contribuie lunar
+                    </Label>
+                  </div>
                   <CampSlider
                     eticheta="Cati ani simulam"
                     ajutor="Perioada pe care vrei sa vezi evolutia banilor, intre 1 si 20 de ani."
@@ -469,10 +480,17 @@ function Index() {
                   Cat economisiti lunar
                 </AccordionTrigger>
                 <AccordionContent className="space-y-5 pb-5">
+                  {!p.parintiContribuie ? (
+                    <p className="text-xs font-medium text-primary">
+                      Bifat la „Setari generale": parintii nu mai pun nimic lunar. Conturile copiilor
+                      continua.
+                    </p>
+                  ) : null}
                   <p className="text-xs text-muted-foreground">
                     Suma lunara pe care o pui deoparte pe toata perioada simulata. Durata este data
                     de numarul de ani ales la „Setari generale".
                   </p>
+                  <div className={p.parintiContribuie ? "space-y-5" : "pointer-events-none space-y-5 opacity-50"}>
                   <CampNumar
                     eticheta="Suma lunara"
                     valoare={p.faze[0]?.suma ?? 0}
@@ -497,6 +515,7 @@ function Index() {
                       )
                     }
                   />
+                  </div>
 
                   {p.bonusuri[0] ? (
                     <div className="space-y-3 border-t pt-4">
