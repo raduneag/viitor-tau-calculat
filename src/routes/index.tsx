@@ -68,7 +68,9 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-const CULORI = ["#3f6f86", "#4f8f7a", "#8a7b45", "#6c6191", "#9a6a58", "#5b7a94"];
+// Culoare distincta pentru fiecare pilon: SAFE albastru, DEPOT auriu, GROW verde,
+// JUNIOR violet; ultimele doua sunt pentru liniile de scenarii salvate.
+const CULORI = ["#2563eb", "#d97706", "#16a34a", "#9333ea", "#0d9488", "#db2777"];
 
 const NUME_COPII = ["Oscar", "Luca"];
 
@@ -77,17 +79,27 @@ const PILON_DEPOT = "Pilon DEPOT";
 const PILON_GROW = "Pilon GROW";
 const PILON_JUNIOR = "Pilon JUNIOR / copil";
 
-const LEGENDA_PILONI: { nume: string; descriere: string }[] = [
+const LEGENDA_PILONI: { nume: string; descriere: string; culoare: string }[] = [
   {
     nume: `${PILON_SAFE} (de neatins)`,
     descriere:
       "Fondul de urgenta, tinut intr-un cont curent (Tagesgeld). Nu se atinge si creste doar cu dobanda mica a contului standard.",
+    culoare: CULORI[0]!,
   },
-  { nume: PILON_DEPOT, descriere: "Cont depozit bancar. Randament mic, dar stabil." },
-  { nume: PILON_GROW, descriere: "Bani investiti in ETF. Randament mai mare, dar cu fluctuatii." },
+  {
+    nume: PILON_DEPOT,
+    descriere: "Cont depozit bancar. Randament mic, dar stabil.",
+    culoare: CULORI[1]!,
+  },
+  {
+    nume: PILON_GROW,
+    descriere: "Bani investiti in ETF. Randament mai mare, dar cu fluctuatii.",
+    culoare: CULORI[2]!,
+  },
   {
     nume: "Pilon JUNIOR Oscar / Pilon JUNIOR Luca",
     descriere: "Conturile junior ale copiilor. La 16 ani trec automat in depozit bancar.",
+    culoare: CULORI[3]!,
   },
 ];
 
@@ -286,10 +298,11 @@ function Index() {
   const piloniRezumat = useMemo(() => {
     const a = rez.ani[rez.ani.length - 1];
     const cb = rez.contribuitPiloni;
-    const mk = (nume: string, valoare: number, contribuit: number) => {
+    const mk = (nume: string, culoare: string, valoare: number, contribuit: number) => {
       const dobanda = valoare - contribuit;
       return {
         nume,
+        culoare,
         valoare,
         contribuit,
         dobanda,
@@ -298,10 +311,10 @@ function Index() {
     };
     if (!a) return [];
     return [
-      mk(PILON_SAFE, a.fondUrgenta, cb.safe),
-      mk(PILON_DEPOT, a.siguranta, cb.depot),
-      mk(PILON_GROW, a.crestere, cb.grow),
-      mk(PILON_JUNIOR, a.copii[0] ?? 0, cb.copii[0] ?? 0),
+      mk(PILON_SAFE, CULORI[0]!, a.fondUrgenta, cb.safe),
+      mk(PILON_DEPOT, CULORI[1]!, a.siguranta, cb.depot),
+      mk(PILON_GROW, CULORI[2]!, a.crestere, cb.grow),
+      mk(PILON_JUNIOR, CULORI[3]!, a.copii[0] ?? 0, cb.copii[0] ?? 0),
     ];
   }, [rez]);
 
@@ -419,7 +432,13 @@ function Index() {
           <dl className="grid gap-3 sm:grid-cols-2">
             {LEGENDA_PILONI.map((pilon) => (
               <div key={pilon.nume} className="flex flex-col gap-0.5">
-                <dt className="text-sm font-semibold">{pilon.nume}</dt>
+                <dt className="flex items-center gap-1.5 text-sm font-semibold">
+                  <span
+                    className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ background: pilon.culoare }}
+                  />
+                  {pilon.nume}
+                </dt>
                 <dd className="text-xs text-muted-foreground">{pilon.descriere}</dd>
               </div>
             ))}
@@ -449,7 +468,7 @@ function Index() {
           <Card>
             <CardContent className="pt-6">
               <p className="text-xs text-muted-foreground">Adaugat de randamente</p>
-              <p className="mt-1 text-xl font-bold tabular-nums text-primary sm:text-2xl">
+              <p className="mt-1 text-xl font-bold tabular-nums text-profit sm:text-2xl">
                 {formatEUR(rez.castig)}
               </p>
               <p className="text-xs text-muted-foreground">{formatProcent(rez.castigProcent)}</p>
@@ -460,26 +479,6 @@ function Index() {
         <div className="grid gap-8 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
           {/* Parametri */}
           <div className="space-y-4">
-            {/* Comutator scenariu */}
-            <div className="rounded-xl border bg-card p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <Label className="flex items-center gap-1.5 text-sm font-semibold">
-                    Scenariul B: parintii nu mai contribuie lunar
-                    <Ajutor text="Contributia lunara a parintilor devine 0 si se blocheaza. Capitalul initial al parintilor sta si lucreaza singur. Conturile copiilor continua neschimbat." />
-                  </Label>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {p.scenariuB
-                      ? "Activ: cei " +
-                        formatEUR(p.capitalInitial + p.fondUrgenta) +
-                        " ai parintilor stau si lucreaza singuri, fara depuneri lunare noi."
-                      : "Scenariul A (implicit): parintii continua sa depuna suma lunara de mai jos."}
-                  </p>
-                </div>
-                <Switch checked={p.scenariuB} onCheckedChange={(v) => set("scenariuB", v)} />
-              </div>
-            </div>
-
             <Accordion
               type="multiple"
               defaultValue={["general", "contributii"]}
@@ -595,23 +594,14 @@ function Index() {
                 <AccordionContent className="space-y-5 pb-5">
                   <p className="text-xs text-muted-foreground">
                     Suma lunara pe care o pui deoparte pe toata perioada simulata. Durata este data
-                    de numarul de ani ales la „Setari generale".
-                    {p.scenariuB ? (
-                      <>
-                        {" "}
-                        <span className="font-medium text-foreground">
-                          Dezactivata in Scenariul B
-                        </span>{" "}
-                        &mdash; contributia lunara a parintilor e 0.
-                      </>
-                    ) : null}
+                    de numarul de ani ales la „Setari generale". Pune 0 daca parintii nu mai
+                    contribuie lunar.
                   </p>
                   <CampNumar
                     eticheta="Suma lunara"
                     valoare={p.faze[0]?.suma ?? 0}
                     sufix="EUR"
                     pas={10}
-                    disabled={p.scenariuB}
                     onChange={(v) =>
                       set(
                         "faze",
@@ -624,7 +614,6 @@ function Index() {
                     valoare={p.faze[0]?.procentCrestere ?? 0}
                     min={0}
                     max={100}
-                    disabled={p.scenariuB}
                     onChange={(v) =>
                       set(
                         "faze",
@@ -894,7 +883,7 @@ function Index() {
                   banii sub saltea, ci cu aceleasi depuneri lasate intr-un cont standard.
                 </p>
                 {[
-                  { nume: "Cu planul", val: comparatie.cuPlanul, cls: "bg-primary" },
+                  { nume: "Cu planul", val: comparatie.cuPlanul, cls: "bg-profit" },
                   {
                     nume: `Aceleasi depuneri, intr-un cont la ${formatProcent(p.randamentStandard)}`,
                     val: comparatie.contStandard,
@@ -919,8 +908,8 @@ function Index() {
                     </div>
                   );
                 })}
-                <div className="rounded-lg bg-primary/10 p-3">
-                  <p className="text-sm font-semibold tabular-nums text-primary">
+                <div className="rounded-lg bg-profit/10 p-3">
+                  <p className="text-sm font-semibold tabular-nums text-profit">
                     + {formatEUR(comparatie.castig)} ({formatProcent(comparatie.castigProcent)})
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
@@ -930,7 +919,9 @@ function Index() {
                 <div className="space-y-1 border-t pt-3 text-xs text-muted-foreground">
                   <div className="flex items-center justify-between gap-4">
                     <span>Fara nicio dobanda (doar ca reper, suma bruta pusa deoparte)</span>
-                    <span className="tabular-nums">{formatEUR(comparatie.faraDobanda)}</span>
+                    <span className="tabular-nums font-medium text-destructive">
+                      {formatEUR(comparatie.faraDobanda)}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between gap-4">
                     <span>
@@ -952,7 +943,8 @@ function Index() {
               </CardHeader>
               <CardContent className="space-y-5">
                 <p className="text-xs text-muted-foreground">
-                  Bara arata cat ai pus din buzunar (gri) si cat s-a adaugat din dobanzi (colorat).
+                  Bara arata cat ai pus din buzunar (culoarea pilonului) si cat s-a adaugat din
+                  dobanzi (verde).
                 </p>
                 {piloniRezumat.map((pil) => {
                   const total = pil.valoare > 0 ? pil.valoare : 1;
@@ -960,21 +952,30 @@ function Index() {
                   return (
                     <div key={pil.nume} className="space-y-1.5">
                       <div className="flex items-baseline justify-between gap-2">
-                        <span className="text-sm font-medium">{pil.nume}</span>
+                        <span className="flex items-center gap-1.5 text-sm font-medium">
+                          <span
+                            className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+                            style={{ background: pil.culoare }}
+                          />
+                          {pil.nume}
+                        </span>
                         <span className="text-sm font-semibold tabular-nums">
                           {formatEUR(pil.valoare)}
                         </span>
                       </div>
                       <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
                         <div
-                          className="bg-muted-foreground/40"
-                          style={{ width: `${pctContribuit}%` }}
+                          style={{
+                            width: `${pctContribuit}%`,
+                            background: pil.culoare,
+                            opacity: 0.55,
+                          }}
                         />
-                        <div className="bg-primary" style={{ width: `${100 - pctContribuit}%` }} />
+                        <div className="bg-profit" style={{ width: `${100 - pctContribuit}%` }} />
                       </div>
                       <div className="flex flex-wrap justify-between gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
                         <span>Pus deoparte: {formatEUR(pil.contribuit)}</span>
-                        <span className="font-medium text-primary">
+                        <span className="font-medium text-profit">
                           + {formatEUR(pil.dobanda)} din dobanzi (
                           {formatProcent(pil.crestereProcent)})
                         </span>
@@ -997,7 +998,9 @@ function Index() {
               <CardContent className="overflow-x-auto">
                 <p className="mb-3 text-xs text-muted-foreground">
                   Cat ar ajunge aceeasi suma stransa plus contributia lunara, pana la 18 ani, in
-                  diverse scenarii. Independent de orizontul de simulare ales mai sus.
+                  diverse scenarii. Independent de orizontul de simulare ales mai sus.{" "}
+                  <span className="text-destructive">Rosu</span> = banii stau nemiscati, fara nicio
+                  dobanda. <span className="text-profit">Verde</span> = banii sunt investiti undeva.
                 </p>
                 <Table>
                   <TableHeader>
@@ -1020,32 +1023,32 @@ function Index() {
                             ({c.ani.toLocaleString("ro-RO")} ani pana la 18)
                           </span>
                         </TableCell>
-                        <TableCell className="text-right tabular-nums">
+                        <TableCell className="text-right tabular-nums text-destructive">
                           {formatEUR(c.depus)}
                         </TableCell>
-                        <TableCell className="text-right tabular-nums">
+                        <TableCell className="text-right tabular-nums text-profit">
                           {formatEUR(c.tagesgeld)}
                         </TableCell>
-                        <TableCell className="text-right tabular-nums">
+                        <TableCell className="text-right tabular-nums text-profit">
                           {formatEUR(c.etf4)}
                         </TableCell>
-                        <TableCell className="text-right tabular-nums">
+                        <TableCell className="text-right tabular-nums text-profit">
                           {formatEUR(c.etf6)}
                         </TableCell>
                       </TableRow>
                     ))}
                     <TableRow>
                       <TableCell className="font-semibold">Impreuna</TableCell>
-                      <TableCell className="text-right font-semibold tabular-nums">
+                      <TableCell className="text-right font-semibold tabular-nums text-destructive">
                         {formatEUR(comparatieCopiiTotal.depus)}
                       </TableCell>
-                      <TableCell className="text-right font-semibold tabular-nums">
+                      <TableCell className="text-right font-semibold tabular-nums text-profit">
                         {formatEUR(comparatieCopiiTotal.tagesgeld)}
                       </TableCell>
-                      <TableCell className="text-right font-semibold tabular-nums">
+                      <TableCell className="text-right font-semibold tabular-nums text-profit">
                         {formatEUR(comparatieCopiiTotal.etf4)}
                       </TableCell>
-                      <TableCell className="text-right font-semibold tabular-nums">
+                      <TableCell className="text-right font-semibold tabular-nums text-profit">
                         {formatEUR(comparatieCopiiTotal.etf6)}
                       </TableCell>
                     </TableRow>
@@ -1145,10 +1148,10 @@ function Index() {
                             <TableCell className="text-right font-semibold tabular-nums">
                               {formatEUR(a.totalFamilie)}
                             </TableCell>
-                            <TableCell className="text-right tabular-nums text-primary">
+                            <TableCell className="text-right tabular-nums text-profit">
                               + {formatEUR(dinDobanzi)}
                             </TableCell>
-                            <TableCell className="text-right tabular-nums text-primary">
+                            <TableCell className="text-right tabular-nums text-profit">
                               + {formatProcent(randament)}
                             </TableCell>
                           </TableRow>

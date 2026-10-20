@@ -36,9 +36,6 @@ export type Parametri = {
   // Suma aditionala (bonus, castig extra) adaugata integral la Pilon GROW, o data pe an.
   // Un singur element in lista.
   bonusuri: BonusAnual[];
-  // Scenariul B: parintii nu mai contribuie lunar (contributia lunara devine 0).
-  // Suma aditionala anuala (bonusuri) nu este afectata.
-  scenariuB: boolean;
   // Test de rezistenta: o scadere de piata, aplicata o singura data, doar Pilonului GROW.
   corectieActiva: boolean;
   corectieAn: number; // in ce an din orizont are loc scaderea (1-based)
@@ -174,8 +171,7 @@ export function simuleaza(p: Parametri): Rezultat {
     }
 
     const faza = fazaPentruLuna(p.faze, luna, totalLuni);
-    // Scenariul B: parintii nu mai contribuie lunar.
-    const contrib = p.scenariuB ? 0 : faza ? faza.suma : 0;
+    const contrib = faza ? faza.suma : 0;
     const spreCrestere = faza ? (contrib * faza.procentCrestere) / 100 : 0;
     const spreSiguranta = contrib - spreCrestere;
 
@@ -273,7 +269,7 @@ export const formatProcent = (v: number) =>
   " %";
 
 export const parametriImpliciti = (): Parametri => ({
-  orizontAni: 7,
+  orizontAni: 20,
   randamentCrestere: 6,
   randamentSiguranta: 2.25,
   randamentStandard: 0.7,
@@ -304,7 +300,6 @@ export const parametriImpliciti = (): Parametri => ({
     },
   ],
   bonusuri: [{ id: "b1", lunaInCicluAnual: 1, suma: 0 }],
-  scenariuB: false,
   corectieActiva: false,
   corectieAn: 5,
   corectieProcent: 25,
