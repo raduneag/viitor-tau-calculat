@@ -197,22 +197,25 @@ export function simuleaza(p: Parametri): Rezultat {
     dobAn.fondUrgenta += dobUrgenta;
 
     copii.forEach((c, idx) => {
-      if (luna > c.orizontLuni) return;
+      // Dupa majorat, parintii nu mai contribuie, dar banii copilului raman investiti si
+      // continua sa produca dobanda - nu inghetata la valoarea de la 18 ani.
+      const inOrizont = luna <= c.orizontLuni;
       const luniRamase = c.orizontLuni - luna + 1;
-      if (!c.mutat && luniRamase <= ANI_PROTECTIE * 12) {
+      if (inOrizont && !c.mutat && luniRamase <= ANI_PROTECTIE * 12) {
         c.siguranta += c.crestere;
         c.crestere = 0;
         c.mutat = true;
       }
+      const contribLunara = inOrizont ? c.cfg.contributieLunara : 0;
       const pc = c.mutat ? 0 : c.cfg.procentCrestere;
-      const cc = (c.cfg.contributieLunara * pc) / 100;
-      const cs = c.cfg.contributieLunara - cc;
+      const cc = (contribLunara * pc) / 100;
+      const cs = contribLunara - cc;
       const dc = c.crestere * rC;
       const ds = c.siguranta * rS;
       c.crestere = c.crestere + dc + cc;
       c.siguranta = c.siguranta + ds + cs;
-      totalContribuit += c.cfg.contributieLunara;
-      contribuitPiloni.copii[idx] = (contribuitPiloni.copii[idx] ?? 0) + c.cfg.contributieLunara;
+      totalContribuit += contribLunara;
+      contribuitPiloni.copii[idx] = (contribuitPiloni.copii[idx] ?? 0) + contribLunara;
       dobAn.copii[idx] = (dobAn.copii[idx] ?? 0) + dc + ds;
     });
 

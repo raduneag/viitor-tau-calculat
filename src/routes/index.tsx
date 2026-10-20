@@ -79,6 +79,12 @@ const PILON_DEPOT = "Pilon DEPOT";
 const PILON_GROW = "Pilon GROW";
 const PILON_JUNIOR = "Pilon JUNIOR / copil";
 
+const SCADERI_OPTIUNI = [
+  { procent: 15, nume: "Usoara" },
+  { procent: 25, nume: "Corectie de piata" },
+  { procent: 40, nume: "Criza majora" },
+];
+
 const LEGENDA_PILONI: { nume: string; descriere: string; culoare: string }[] = [
   {
     nume: `${PILON_SAFE} (de neatins)`,
@@ -298,11 +304,10 @@ function Index() {
   const piloniRezumat = useMemo(() => {
     const a = rez.ani[rez.ani.length - 1];
     const cb = rez.contribuitPiloni;
-    const mk = (nume: string, culoare: string, valoare: number, contribuit: number) => {
+    const mk = (nume: string, valoare: number, contribuit: number) => {
       const dobanda = valoare - contribuit;
       return {
         nume,
-        culoare,
         valoare,
         contribuit,
         dobanda,
@@ -311,10 +316,10 @@ function Index() {
     };
     if (!a) return [];
     return [
-      mk(PILON_SAFE, CULORI[0]!, a.fondUrgenta, cb.safe),
-      mk(PILON_DEPOT, CULORI[1]!, a.siguranta, cb.depot),
-      mk(PILON_GROW, CULORI[2]!, a.crestere, cb.grow),
-      mk(PILON_JUNIOR, CULORI[3]!, a.copii[0] ?? 0, cb.copii[0] ?? 0),
+      mk(PILON_SAFE, a.fondUrgenta, cb.safe),
+      mk(PILON_DEPOT, a.siguranta, cb.depot),
+      mk(PILON_GROW, a.crestere, cb.grow),
+      mk(PILON_JUNIOR, a.copii[0] ?? 0, cb.copii[0] ?? 0),
     ];
   }, [rez]);
 
@@ -437,7 +442,7 @@ function Index() {
                     className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
                     style={{ background: pilon.culoare }}
                   />
-                  {pilon.nume}
+                  <span style={{ color: pilon.culoare }}>{pilon.nume}</span>
                 </dt>
                 <dd className="text-xs text-muted-foreground">{pilon.descriere}</dd>
               </div>
@@ -671,7 +676,7 @@ function Index() {
                       </p>
                       <CampNumar
                         eticheta="Varsta acum"
-                        ajutor="Perioada de economisire se calculeaza pana la 18 ani."
+                        ajutor="Contributiile lunare ale parintilor se calculeaza pana la 18 ani; dupa aceea, banii copilului raman investiti si continua sa produca dobanda."
                         valoare={c.varsta}
                         sufix="ani"
                         onChange={(v) =>
@@ -721,7 +726,9 @@ function Index() {
                       />
                       <p className="text-xs text-muted-foreground">
                         Nota: la 16 ani, toti banii copilului trec automat in Pilon DEPOT (depozit
-                        bancar), ca sa nu depinda de bursa in ultimii ani inainte de 18.
+                        bancar), ca sa nu depinda de bursa in ultimii ani inainte de 18. Dupa 18
+                        ani, parintii nu mai contribuie, dar suma ramane investita si continua sa
+                        creasca din dobanda.
                       </p>
                     </div>
                   ))}
@@ -753,16 +760,33 @@ function Index() {
                         unitate="an"
                         onChange={(v) => set("corectieAn", v)}
                       />
-                      <CampSlider
-                        eticheta="Cat de mare e scaderea"
-                        valoare={p.corectieProcent}
-                        min={0}
-                        max={50}
-                        onChange={(v) => set("corectieProcent", v)}
-                      />
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-medium text-muted-foreground">
+                          Cat de mare e scaderea
+                        </Label>
+                        <div className="grid grid-cols-3 gap-2">
+                          {SCADERI_OPTIUNI.map((o) => (
+                            <button
+                              key={o.procent}
+                              type="button"
+                              onClick={() => set("corectieProcent", o.procent)}
+                              className={`rounded-lg border p-2 text-center transition-colors ${
+                                p.corectieProcent === o.procent
+                                  ? "border-primary bg-primary/10"
+                                  : "border-border hover:bg-muted"
+                              }`}
+                            >
+                              <div className="text-sm font-semibold tabular-nums">
+                                -{o.procent}%
+                              </div>
+                              <div className="text-[11px] text-muted-foreground">{o.nume}</div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                       <p className="text-xs text-muted-foreground">
-                        La inceputul anului ales, Pilon GROW scade instantaneu cu procentul de mai
-                        sus, apoi continua sa creasca normal, cu randamentul setat.
+                        La inceputul anului ales, Pilon GROW scade instantaneu cu procentul ales,
+                        apoi continua sa creasca normal, cu randamentul setat.
                       </p>
                     </>
                   ) : null}
@@ -943,7 +967,7 @@ function Index() {
               </CardHeader>
               <CardContent className="space-y-5">
                 <p className="text-xs text-muted-foreground">
-                  Bara arata cat ai pus din buzunar (culoarea pilonului) si cat s-a adaugat din
+                  Bara arata cat ai pus din buzunar (gri, fara dobanzi) si cat s-a adaugat din
                   dobanzi (verde).
                 </p>
                 {piloniRezumat.map((pil) => {
@@ -952,24 +976,15 @@ function Index() {
                   return (
                     <div key={pil.nume} className="space-y-1.5">
                       <div className="flex items-baseline justify-between gap-2">
-                        <span className="flex items-center gap-1.5 text-sm font-medium">
-                          <span
-                            className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
-                            style={{ background: pil.culoare }}
-                          />
-                          {pil.nume}
-                        </span>
+                        <span className="text-sm font-medium">{pil.nume}</span>
                         <span className="text-sm font-semibold tabular-nums">
                           {formatEUR(pil.valoare)}
                         </span>
                       </div>
                       <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
                         <div
-                          style={{
-                            width: `${pctContribuit}%`,
-                            background: pil.culoare,
-                            opacity: 0.55,
-                          }}
+                          className="bg-muted-foreground/40"
+                          style={{ width: `${pctContribuit}%` }}
                         />
                         <div className="bg-profit" style={{ width: `${100 - pctContribuit}%` }} />
                       </div>
